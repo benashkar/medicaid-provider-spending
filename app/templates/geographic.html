@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}Geographic View — Medicaid Provider Spending{% endblock %}
+
+{% block content %}
+<h2 class="mb-4">Geographic Spending Analysis</h2>
+
+<div class="row g-3 mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Spending by State</h5>
+                <div id="choropleth-map" style="height: 500px;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">State Details</h5>
+                <table class="table table-striped table-sm" id="state-table">
+                    <thead>
+                        <tr>
+                            <th>State</th>
+                            <th class="text-end">Total Paid</th>
+                            <th class="text-end">Claims</th>
+                            <th class="text-end">Providers</th>
+                            <th class="text-end">Beneficiaries</th>
+                            <th class="text-end">Avg per Provider</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for s in state_data %}
+                        <tr>
+                            <td>{{ s.state_code }}</td>
+                            <td class="text-end">${{ "{:,.0f}".format(s.total_paid or 0) }}</td>
+                            <td class="text-end">{{ "{:,}".format(s.total_claims or 0) }}</td>
+                            <td class="text-end">{{ "{:,}".format(s.provider_count or 0) }}</td>
+                            <td class="text-end">{{ "{:,}".format(s.total_benes or 0) }}</td>
+                            <td class="text-end">
+                                {% if s.provider_count and s.provider_count > 0 %}
+                                    ${{ "{:,.0f}".format((s.total_paid or 0) / s.provider_count) }}
+                                {% else %}
+                                    —
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    var stateData = [
+        {% for s in state_data %}
+        {
+            state: "{{ s.state_code }}",
+            total_paid: {{ s.total_paid or 0 }},
+            total_claims: {{ s.total_claims or 0 }},
+            provider_count: {{ s.provider_count or 0 }}
+        }{% if not loop.last %},{% endif %}
+        {% endfor %}
+    ];
+
+    var data = [{
+        type: 'choropleth',
+        locationmode: 'USA-states',
+        locations: stateData.map(d => d.state),
+        z: stateData.map(d => d.total_paid),
+        text: stateData.map(d => d.state + ': $' + d.total_paid.toLocaleString()),
+        colorscale: 'Blues',
+        colorbar: {
+            title: 'Total Paid ($)',
+            tickprefix: '$'
+        }
+    }];
+
+    var layout = {
+        geo: {
+            scope: 'usa',
+            showlakes: true,
+            lakecolor: 'rgb(255, 255, 255)'
+        },
+        margin: {t: 10, b: 10, l: 10, r: 10}
+    };
+
+    Plotly.newPlot('choropleth-map', data, layout, {responsive: true});
+
+    $(document).ready(function() {
+        $('#state-table').DataTable({
+            order: [[1, 'desc']],
+            pageLength: 25
+        });
+    });
+</script>
+{% endblock %}
