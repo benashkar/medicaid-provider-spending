@@ -1,0 +1,26 @@
+databases:
+  - name: medicaid-db
+    plan: standard
+    databaseName: medicaid_spending
+    user: medicaid_user
+    region: ohio
+
+services:
+  - type: web
+    name: medicaid-dashboard
+    runtime: docker
+    plan: starter
+    region: ohio
+    repo: https://github.com/benashkar/medicaid-provider-spending
+    branch: main
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: medicaid-db
+          property: connectionString
+      - key: FLASK_ENV
+        value: production
+      - key: SECRET_KEY
+        generateValue: true
+    healthCheckPath: /health
