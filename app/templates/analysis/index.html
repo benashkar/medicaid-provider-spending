@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Analysis — Medicaid Provider Spending{% endblock %}
+
+{% block content %}
+<h2 class="mb-4">Spending Analysis</h2>
+
+<div class="row g-3">
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title">Top Organizations</h5>
+                <p class="card-text">Top 100 organizations ranked by total lifetime Medicaid spending.</p>
+                <a href="{{ url_for('analysis.top_organizations') }}" class="btn btn-primary">View</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title">Spending Growth Anomalies</h5>
+                <p class="card-text">Providers with &gt;100% month-over-month spending increases.</p>
+                <a href="{{ url_for('analysis.spending_growth') }}" class="btn btn-warning">View</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title">Statistical Outliers</h5>
+                <p class="card-text">Providers billing &gt;2 standard deviations above peers per HCPCS code.</p>
+                <a href="{{ url_for('analysis.outlier_providers') }}" class="btn btn-danger">View</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title">Geographic Concentration</h5>
+                <p class="card-text">Spending concentration by state and ZIP code.</p>
+                <a href="{{ url_for('analysis.geographic_concentration') }}" class="btn btn-info">View</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title">Provider Network</h5>
+                <p class="card-text">Billing vs servicing provider relationships and referral patterns.</p>
+                <a href="{{ url_for('analysis.billing_network') }}" class="btn btn-secondary">View</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -17,6 +17,13 @@ MATERIALIZED_VIEWS = [
     "mv_monthly_spending",
     "mv_state_spending",
     "mv_hcpcs_spending",
+    # Analysis views
+    "mv_top_organizations",
+    "mv_shared_addresses",
+    "mv_spending_growth",
+    "mv_outlier_providers",
+    "mv_geographic_concentration",
+    "mv_billing_servicing_network",
 ]
 
 

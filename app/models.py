@@ -170,3 +170,102 @@ class MvHcpcsSpending(db.Model):
     total_paid = db.Column(db.Numeric)
     total_claims = db.Column(db.BigInteger)
     provider_count = db.Column(db.BigInteger)
+
+
+# Analysis views
+
+class MvTopOrganizations(db.Model):
+    __tablename__ = "mv_top_organizations"
+    __table_args__ = {"info": {"is_view": True}}
+
+    billing_npi = db.Column(db.String(10), primary_key=True)
+    organization_name = db.Column(db.Text)
+    entity_type = db.Column(db.SmallInteger)
+    state_code = db.Column(db.String(2))
+    city = db.Column(db.Text)
+    lifetime_paid = db.Column(db.Numeric)
+    lifetime_claims = db.Column(db.BigInteger)
+    lifetime_benes = db.Column(db.BigInteger)
+    distinct_hcpcs = db.Column(db.BigInteger)
+    first_claim = db.Column(db.Date)
+    last_claim = db.Column(db.Date)
+
+
+class MvSpendingGrowth(db.Model):
+    __tablename__ = "mv_spending_growth"
+    __table_args__ = {"info": {"is_view": True}}
+
+    billing_npi = db.Column(db.String(10), primary_key=True)
+    organization_name = db.Column(db.Text)
+    last_name = db.Column(db.Text)
+    first_name = db.Column(db.Text)
+    entity_type = db.Column(db.SmallInteger)
+    claim_month = db.Column(db.Date, primary_key=True)
+    monthly_paid = db.Column(db.Numeric)
+    prev_paid = db.Column(db.Numeric)
+    pct_change = db.Column(db.Numeric)
+
+    @property
+    def display_name(self):
+        if self.entity_type == 2 and self.organization_name:
+            return self.organization_name
+        parts = [self.first_name, self.last_name]
+        return " ".join(p for p in parts if p) or self.billing_npi
+
+
+class MvOutlierProviders(db.Model):
+    __tablename__ = "mv_outlier_providers"
+    __table_args__ = {"info": {"is_view": True}}
+
+    billing_npi = db.Column(db.String(10), primary_key=True)
+    organization_name = db.Column(db.Text)
+    last_name = db.Column(db.Text)
+    first_name = db.Column(db.Text)
+    entity_type = db.Column(db.SmallInteger)
+    hcpcs_code = db.Column(db.Text, primary_key=True)
+    short_description = db.Column(db.Text)
+    provider_paid = db.Column(db.Numeric)
+    peer_mean = db.Column(db.Numeric)
+    peer_stddev = db.Column(db.Numeric)
+    z_score = db.Column(db.Numeric)
+    peer_count = db.Column(db.BigInteger)
+
+    @property
+    def display_name(self):
+        if self.entity_type == 2 and self.organization_name:
+            return self.organization_name
+        parts = [self.first_name, self.last_name]
+        return " ".join(p for p in parts if p) or self.billing_npi
+
+
+class MvGeographicConcentration(db.Model):
+    __tablename__ = "mv_geographic_concentration"
+    __table_args__ = {"info": {"is_view": True}}
+
+    state_code = db.Column(db.String(2), primary_key=True)
+    zip5 = db.Column(db.String(5), primary_key=True)
+    city = db.Column(db.Text)
+    provider_count = db.Column(db.BigInteger)
+    total_paid = db.Column(db.Numeric)
+    total_claims = db.Column(db.BigInteger)
+    total_benes = db.Column(db.BigInteger)
+    avg_paid_per_provider = db.Column(db.Numeric)
+
+
+class MvBillingServicingNetwork(db.Model):
+    __tablename__ = "mv_billing_servicing_network"
+    __table_args__ = {"info": {"is_view": True}}
+
+    billing_npi = db.Column(db.String(10), primary_key=True)
+    billing_org = db.Column(db.Text)
+    billing_last = db.Column(db.Text)
+    billing_type = db.Column(db.SmallInteger)
+    servicing_npi = db.Column(db.String(10), primary_key=True)
+    servicing_org = db.Column(db.Text)
+    servicing_last = db.Column(db.Text)
+    servicing_type = db.Column(db.SmallInteger)
+    total_paid = db.Column(db.Numeric)
+    total_claims = db.Column(db.BigInteger)
+    shared_hcpcs = db.Column(db.BigInteger)
+    first_month = db.Column(db.Date)
+    last_month = db.Column(db.Date)
