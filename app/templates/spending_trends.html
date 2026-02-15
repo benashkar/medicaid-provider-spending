@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}Spending Trends — Medicaid Provider Spending{% endblock %}
+
+{% block content %}
+<h2 class="mb-4">Spending Trends</h2>
+
+<div class="row g-3 mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Total Paid Over Time</h5>
+                <div id="paid-chart" style="height: 400px;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Claims Volume</h5>
+                <div id="claims-chart" style="height: 350px;"></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Active Providers</h5>
+                <div id="providers-chart" style="height: 350px;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Monthly Data Table</h5>
+                <table class="table table-striped table-sm" id="monthly-table">
+                    <thead>
+                        <tr>
+                            <th>Month</th>
+                            <th class="text-end">Total Paid</th>
+                            <th class="text-end">Claims</th>
+                            <th class="text-end">Providers</th>
+                            <th class="text-end">Beneficiaries</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in monthly_data %}
+                        <tr>
+                            <td>{{ row.claim_month.strftime('%Y-%m') }}</td>
+                            <td class="text-end">${{ "{:,.0f}".format(row.total_paid or 0) }}</td>
+                            <td class="text-end">{{ "{:,}".format(row.total_claims or 0) }}</td>
+                            <td class="text-end">{{ "{:,}".format(row.active_providers or 0) }}</td>
+                            <td class="text-end">{{ "{:,}".format(row.total_benes or 0) }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    fetch('{{ url_for("spending.monthly_spending") }}')
+        .then(r => r.json())
+        .then(data => {
+            renderMonthlyChart('paid-chart', data);
+            renderLineChart('claims-chart', data.map(d => d.month), data.map(d => d.total_claims), 'Claims', '#198754');
+            renderLineChart('providers-chart', data.map(d => d.month), data.map(d => d.active_providers), 'Providers', '#0dcaf0');
+        });
+
+    $(document).ready(function() {
+        $('#monthly-table').DataTable({
+            order: [[0, 'desc']],
+            pageLength: 25
+        });
+    });
+</script>
+{% endblock %}

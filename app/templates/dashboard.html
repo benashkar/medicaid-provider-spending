@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Medicaid Provider Spending{% endblock %}
+
+{% block content %}
+<h2 class="mb-4">Medicaid Provider Spending Dashboard</h2>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card text-bg-primary h-100">
+            <div class="card-body">
+                <h6 class="card-title">Total Spending</h6>
+                <h3 class="card-text">${{ "{:,.0f}".format(total_paid) }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-bg-success h-100">
+            <div class="card-body">
+                <h6 class="card-title">Total Claims</h6>
+                <h3 class="card-text">{{ "{:,}".format(total_claims) }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-bg-info h-100">
+            <div class="card-body">
+                <h6 class="card-title">Unique Providers</h6>
+                <h3 class="card-text">{{ "{:,}".format(provider_count) }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-bg-warning h-100">
+            <div class="card-body">
+                <h6 class="card-title">Unique Beneficiaries</h6>
+                <h3 class="card-text">{{ "{:,}".format(total_benes) }}</h3>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <h6 class="card-title">Date Range</h6>
+                <p class="card-text">
+                    {% if date_min and date_max %}
+                        {{ date_min.strftime('%B %Y') }} &mdash; {{ date_max.strftime('%B %Y') }}
+                    {% else %}
+                        No data loaded
+                    {% endif %}
+                </p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <h6 class="card-title">States Covered</h6>
+                <p class="card-text">{{ state_count }} states/territories</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Monthly Spending Trend</h5>
+                <div id="monthly-chart" style="height: 400px;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    fetch('{{ url_for("spending.monthly_spending") }}')
+        .then(r => r.json())
+        .then(data => {
+            renderMonthlyChart('monthly-chart', data);
+        });
+</script>
+{% endblock %}

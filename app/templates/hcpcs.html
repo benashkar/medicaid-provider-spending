@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}HCPCS Codes — Medicaid Provider Spending{% endblock %}
+
+{% block content %}
+<h2 class="mb-4">Top HCPCS Procedure Codes by Spending</h2>
+
+<div class="row g-3 mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Top 20 HCPCS Codes</h5>
+                <div id="hcpcs-chart" style="height: 500px;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <table class="table table-striped table-sm" id="hcpcs-table">
+                    <thead>
+                        <tr>
+                            <th>HCPCS Code</th>
+                            <th>Description</th>
+                            <th class="text-end">Total Paid</th>
+                            <th class="text-end">Claims</th>
+                            <th class="text-end">Providers</th>
+                            <th class="text-end">Avg per Provider</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for h in hcpcs_data %}
+                        <tr>
+                            <td><strong>{{ h.hcpcs_code }}</strong></td>
+                            <td>{{ h.short_description or '—' }}</td>
+                            <td class="text-end">${{ "{:,.0f}".format(h.total_paid or 0) }}</td>
+                            <td class="text-end">{{ "{:,}".format(h.total_claims or 0) }}</td>
+                            <td class="text-end">{{ "{:,}".format(h.provider_count or 0) }}</td>
+                            <td class="text-end">
+                                {% if h.provider_count and h.provider_count > 0 %}
+                                    ${{ "{:,.0f}".format((h.total_paid or 0) / h.provider_count) }}
+                                {% else %}
+                                    —
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    var hcpcsData = [
+        {% for h in hcpcs_data[:20] %}
+        {
+            code: "{{ h.hcpcs_code }}",
+            description: "{{ (h.short_description or h.hcpcs_code)|e }}",
+            total_paid: {{ h.total_paid or 0 }}
+        }{% if not loop.last %},{% endif %}
+        {% endfor %}
+    ];
+
+    var data = [{
+        type: 'bar',
+        x: hcpcsData.map(d => d.total_paid),
+        y: hcpcsData.map(d => d.code + ' - ' + d.description),
+        orientation: 'h',
+        marker: { color: '#0d6efd' },
+        text: hcpcsData.map(d => '$' + d.total_paid.toLocaleString()),
+        textposition: 'auto'
+    }];
+
+    var layout = {
+        margin: {l: 250, r: 20, t: 10, b: 40},
+        xaxis: { title: 'Total Paid ($)', tickprefix: '$' },
+        yaxis: { autorange: 'reversed' }
+    };
+
+    Plotly.newPlot('hcpcs-chart', data, layout, {responsive: true});
+
+    $(document).ready(function() {
+        $('#hcpcs-table').DataTable({
+            order: [[2, 'desc']],
+            pageLength: 25
+        });
+    });
+</script>
+{% endblock %}
