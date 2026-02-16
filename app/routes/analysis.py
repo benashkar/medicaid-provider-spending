@@ -362,20 +362,28 @@ def rapid_ramp():
 
 
 # [EN] Entity designation categories for organization name filtering.
-#      Shell companies and provider mills often use certain legal designations.
-#      Legitimate hospitals/health systems tend to use their full institutional names.
+#      Categorized into "suspicious" (shell company / provider mill indicators)
+#      and "legitimate" (established institutions / standard professional corps).
+#      The top-level "suspicious" and "legitimate" keys combine all patterns
+#      in their respective category for a single-click aggregate filter.
 # [RU] Категории юридических форм для фильтрации названий организаций.
+#      Разделены на «подозрительные» (индикаторы подставных компаний) и
+#      «легитимные» (устоявшиеся учреждения / стандартные профессиональные корпорации).
 # [PT] Categorias de designacao de entidade para filtragem de nomes de organizacoes.
-ORG_DESIGNATION_FILTERS = {
+#      Categorizados em "suspeitos" (indicadores de empresas de fachada)
+#      e "legitimos" (instituicoes estabelecidas / corporacoes profissionais padrao).
+
+# [EN] Suspicious entity types — common in shell companies, provider mills, DME fraud
+# [RU] Подозрительные типы — распространены в подставных компаниях, мошенничестве с DME
+# [PT] Tipos suspeitos — comuns em empresas de fachada, fraude com DME
+SUSPICIOUS_ENTITY_FILTERS = {
     "llc": {"label": "LLC / PLLC / LLP", "patterns": ["LLC", "PLLC", "LLP"]},
-    "corp": {"label": "Inc / Corp", "patterns": ["INC", "CORP", "CORPORATION"]},
-    "pc_pa": {"label": "PC / PA (Professional)", "patterns": ["PC", "PA"]},
     "enterprise": {
         "label": "Enterprise / Holdings / Management",
         "patterns": ["ENTERPRISE", "ENTERPRISES", "HOLDINGS", "MANAGEMENT"],
     },
     "solutions": {
-        "label": "Solutions / Consulting / Services",
+        "label": "Solutions / Consulting",
         "patterns": ["SOLUTIONS", "CONSULTING"],
     },
     "staffing": {
@@ -390,15 +398,38 @@ ORG_DESIGNATION_FILTERS = {
         "label": "Wellness / Global / International",
         "patterns": ["WELLNESS", "GLOBAL", "INTERNATIONAL"],
     },
-    "credential": {
-        "label": "DDS / DMD / DPM / OD / DC (Credential in name)",
-        "patterns": ["DDS", "DMD", "DPM", "OD", "DC"],
-    },
-    "hospital": {
-        "label": "Hospital / Community / Foundation",
-        "patterns": ["HOSPITAL", "COMMUNITY", "FOUNDATION"],
-    },
 }
+
+# [EN] Legitimate entity types — established institutions, health systems, standard professional corps
+# [RU] Легитимные типы — устоявшиеся учреждения, системы здравоохранения, стандартные профессиональные корпорации
+# [PT] Tipos legitimos — instituicoes estabelecidas, sistemas de saude, corporacoes profissionais padrao
+LEGITIMATE_ENTITY_FILTERS = {
+    "hospital": {
+        "label": "Hospital / Community / Foundation / Center",
+        "patterns": ["HOSPITAL", "COMMUNITY", "FOUNDATION", "CENTER"],
+    },
+    "corp": {"label": "Inc / Corp", "patterns": ["INC", "CORP", "CORPORATION"]},
+    "pc_pa": {"label": "PC / PA (Professional)", "patterns": ["PC", "PA"]},
+}
+
+# [EN] Combined lookup for route logic — maps every individual key plus the aggregate keys
+# [RU] Объединённый словарь для логики маршрута
+# [PT] Dicionario combinado para logica de rota
+ORG_DESIGNATION_FILTERS = {
+    **SUSPICIOUS_ENTITY_FILTERS,
+    **LEGITIMATE_ENTITY_FILTERS,
+}
+
+# [EN] Aggregate keys that combine all patterns from their category
+# [RU] Агрегатные ключи, объединяющие все шаблоны из своей категории
+# [PT] Chaves agregadas que combinam todos os padroes de sua categoria
+ALL_SUSPICIOUS_PATTERNS = []
+for v in SUSPICIOUS_ENTITY_FILTERS.values():
+    ALL_SUSPICIOUS_PATTERNS.extend(v["patterns"])
+
+ALL_LEGITIMATE_PATTERNS = []
+for v in LEGITIMATE_ENTITY_FILTERS.values():
+    ALL_LEGITIMATE_PATTERNS.extend(v["patterns"])
 
 
 @bp.route("/fraud-risk")
@@ -414,25 +445,45 @@ def fraud_risk():
     if state:
         query = query.filter(MvFraudRiskScore.state_code == state.upper())
 
-    # [EN] Filter by organization entity designation (name patterns)
-    if org_type and org_type in ORG_DESIGNATION_FILTERS:
-        patterns = ORG_DESIGNATION_FILTERS[org_type]["patterns"]
-        conditions = []
-        for pat in patterns:
-            # Match word boundary: " LLC", " LLC,", start with "LLC "
-            conditions.append(
-                MvFraudRiskScore.organization_name.ilike(f"% {pat}")
-            )
-            conditions.append(
-                MvFraudRiskScore.organization_name.ilike(f"% {pat},%")
-            )
-            conditions.append(
-                MvFraudRiskScore.organization_name.ilike(f"% {pat}.%")
-            )
-            conditions.append(
-                MvFraudRiskScore.organization_name.ilike(f"{pat} %")
-            )
-        query = query.filter(db.or_(*conditions))
+    # [EN] Filter by organization entity designation (name patterns).
+    #      Supports individual category keys (e.g., "llc", "staffing") and
+    #      aggregate keys ("suspicious" = all suspicious, "legitimate" = all legitimate).
+    # [RU] Фильтрация по юридической форме организации (шаблоны названий).
+    #      Поддерживает отдельные ключи категорий и агрегатные ключи.
+    # [PT] Filtragem por designacao da entidade (padroes de nome).
+    #      Suporta chaves de categoria individuais e chaves agregadas.
+    if org_type:
+        # [EN] Determine which patterns to match based on filter key
+        # [RU] Определяем, какие шаблоны сопоставлять на основе ключа фильтра
+        # [PT] Determina quais padroes corresponder com base na chave do filtro
+        if org_type == "suspicious":
+            patterns = ALL_SUSPICIOUS_PATTERNS
+        elif org_type == "legitimate":
+            patterns = ALL_LEGITIMATE_PATTERNS
+        elif org_type in ORG_DESIGNATION_FILTERS:
+            patterns = ORG_DESIGNATION_FILTERS[org_type]["patterns"]
+        else:
+            patterns = []
+
+        if patterns:
+            conditions = []
+            for pat in patterns:
+                # [EN] Match word boundary: " LLC", " LLC,", " LLC.", start with "LLC "
+                # [RU] Сопоставление границы слова
+                # [PT] Correspondencia de limite de palavra
+                conditions.append(
+                    MvFraudRiskScore.organization_name.ilike(f"% {pat}")
+                )
+                conditions.append(
+                    MvFraudRiskScore.organization_name.ilike(f"% {pat},%")
+                )
+                conditions.append(
+                    MvFraudRiskScore.organization_name.ilike(f"% {pat}.%")
+                )
+                conditions.append(
+                    MvFraudRiskScore.organization_name.ilike(f"{pat} %")
+                )
+            query = query.filter(db.or_(*conditions))
 
     query = query.order_by(
         MvFraudRiskScore.risk_score.desc(),
@@ -454,7 +505,8 @@ def fraud_risk():
         state=state,
         states=states,
         org_type=org_type,
-        org_type_filters=ORG_DESIGNATION_FILTERS,
+        suspicious_filters=SUSPICIOUS_ENTITY_FILTERS,
+        legitimate_filters=LEGITIMATE_ENTITY_FILTERS,
     )
 
 

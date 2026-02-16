@@ -36,13 +36,24 @@
             {% endfor %}
         </select>
     </div>
-    <div class="col-md-3">
+    <div class="col-md-4">
         <label class="form-label fw-bold">Entity Designation</label>
         <select name="org_type" class="form-select">
             <option value="">All Types</option>
-            {% for key, info in org_type_filters.items() %}
-            <option value="{{ key }}" {% if org_type == key %}selected{% endif %}>{{ info.label }}</option>
-            {% endfor %}
+            <optgroup label="Aggregate Filters">
+                <option value="suspicious" {% if org_type == 'suspicious' %}selected{% endif %}>All Suspicious Entity Types</option>
+                <option value="legitimate" {% if org_type == 'legitimate' %}selected{% endif %}>All Legitimate Entity Types</option>
+            </optgroup>
+            <optgroup label="Suspicious (Shell Co / Provider Mill Indicators)">
+                {% for key, info in suspicious_filters.items() %}
+                <option value="{{ key }}" {% if org_type == key %}selected{% endif %}>{{ info.label }}</option>
+                {% endfor %}
+            </optgroup>
+            <optgroup label="Legitimate (Hospitals / Health Systems)">
+                {% for key, info in legitimate_filters.items() %}
+                <option value="{{ key }}" {% if org_type == key %}selected{% endif %}>{{ info.label }}</option>
+                {% endfor %}
+            </optgroup>
         </select>
     </div>
     <div class="col-md-2 d-flex align-items-end">
@@ -186,6 +197,29 @@
             <li><strong>Shared Addr</strong> — 3+ providers billing from the same building address</li>
             <li><strong>Network</strong> — Bills through 5+ different servicing providers</li>
         </ul>
+        <hr>
+        <h6>Entity Designation Filter:</h6>
+        <div class="row">
+            <div class="col-md-6">
+                <p class="fw-bold text-danger mb-1">Suspicious (Shell Co / Provider Mill Indicators):</p>
+                <ul class="small mb-2">
+                    <li><strong>LLC / PLLC / LLP</strong> — Easy to form/dissolve limited liability entities</li>
+                    <li><strong>Enterprise / Holdings / Management</strong> — Corporate shell indicators</li>
+                    <li><strong>Solutions / Consulting</strong> — Vague business names</li>
+                    <li><strong>Staffing / Agency</strong> — Staffing agencies billing Medicaid directly</li>
+                    <li><strong>Supply / Supplies (DME)</strong> — DME/supply companies (high fraud area)</li>
+                    <li><strong>Wellness / Global / International</strong> — Vague/inflated scope names</li>
+                </ul>
+            </div>
+            <div class="col-md-6">
+                <p class="fw-bold text-success mb-1">Legitimate (Established Institutions):</p>
+                <ul class="small mb-0">
+                    <li><strong>Hospital / Community / Foundation / Center</strong> — Established institutions</li>
+                    <li><strong>Inc / Corp</strong> — Standard corporate entities</li>
+                    <li><strong>PC / PA (Professional)</strong> — Standard professional corporations</li>
+                </ul>
+            </div>
+        </div>
     </div>
 </div>
 {% endblock %}
