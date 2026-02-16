@@ -344,6 +344,87 @@ def find_cms_hcpcs_file() -> Path | None:
     return None
 
 
+# [EN] Search for a CMS Physician Fee Schedule (PFS) Relative Value file in raw_data/.
+#      This file contains CPT code short descriptions for numeric procedure codes
+#      (e.g., 99213, 99214) that are NOT in the HCPCS Level II Alpha-Numeric file.
+#      Looks for files matching PPRRVU*.csv pattern.
+# [RU] Поиск файла PFS RVU (Относительные единицы стоимости) в raw_data/.
+#      Этот файл содержит краткие описания кодов CPT для числовых кодов процедур.
+# [PT] Busca arquivo PFS RVU (Valores Relativos) em raw_data/.
+#      Este arquivo contem descricoes curtas de codigos CPT para codigos numericos.
+def find_pfs_rvu_file() -> Path | None:
+    """Find CMS PFS Relative Value Unit file (contains CPT descriptions)."""
+    for pattern in ["PPRRVU*.csv", "pprrvu*.csv", "PPRRVU*.CSV"]:
+        candidates = list(RAW_DATA_DIR.glob(pattern))
+        if candidates:
+            return max(candidates, key=lambda p: p.stat().st_mtime)
+    return None
+
+
+# [EN] Load HCPCS/CPT codes from CMS Physician Fee Schedule RVU CSV file.
+#      The PFS RVU file has 9 header/copyright lines, then a column header row, then data.
+#      Columns: HCPCS, MOD, DESCRIPTION, STATUS CODE, ...
+#      This is the primary source for numeric CPT code descriptions (99213, 99214, etc.)
+#      and also covers dental (D-codes) and some HCPCS Level II codes.
+#      Uses ON CONFLICT DO UPDATE with COALESCE to fill in descriptions for codes
+#      that already exist in hcpcs_codes but have NULL descriptions.
+# [RU] Загрузка кодов HCPCS/CPT из CSV-файла PFS RVU.
+#      Файл PFS RVU имеет 9 строк заголовка/копирайта, затем строку заголовков столбцов, затем данные.
+# [PT] Carrega codigos HCPCS/CPT do arquivo CSV PFS RVU do CMS.
+#      O arquivo PFS RVU tem 9 linhas de cabecalho/copyright, depois cabecalhos de coluna, depois dados.
+def load_hcpcs_from_pfs_rvu(file_path: Path, database_url: str):
+    """Load HCPCS/CPT codes from CMS Physician Fee Schedule RVU CSV file."""
+    log.info("Loading CPT descriptions from PFS RVU file: %s", file_path)
+    conn = psycopg2.connect(database_url)
+    cur = conn.cursor()
+
+    loaded = 0
+    skipped = 0
+    seen_codes = set()  # Track unique codes (file has multiple rows per code with different modifiers)
+
+    with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+        # [EN] Skip 9 header/copyright lines before the column header row
+        # [RU] Пропускаем 9 строк заголовка/копирайта перед строкой заголовков столбцов
+        # [PT] Pula 9 linhas de cabecalho/copyright antes da linha de cabecalhos de colunas
+        for _ in range(9):
+            next(f)
+
+        reader = csv.DictReader(f)
+        for row in reader:
+            hcpcs_code = row.get("HCPCS", "").strip()
+            description = row.get("DESCRIPTION", "").strip()
+
+            # [EN] Skip rows without a valid HCPCS code or description
+            if not hcpcs_code or not description:
+                skipped += 1
+                continue
+
+            # [EN] Skip duplicate codes (same code appears with different modifiers)
+            if hcpcs_code in seen_codes:
+                continue
+            seen_codes.add(hcpcs_code)
+
+            try:
+                cur.execute(
+                    """INSERT INTO hcpcs_codes (hcpcs_code, short_description)
+                       VALUES (%s, %s)
+                       ON CONFLICT (hcpcs_code) DO UPDATE SET
+                        short_description = COALESCE(EXCLUDED.short_description, hcpcs_codes.short_description)""",
+                    (hcpcs_code, description),
+                )
+                loaded += 1
+            except Exception as e:
+                log.debug("PFS RVU insert error for %s: %s", hcpcs_code, e)
+                conn.rollback()
+                skipped += 1
+                continue
+
+    conn.commit()
+    cur.close()
+    conn.close()
+    log.info("PFS RVU load complete: %d codes loaded, %d skipped", loaded, skipped)
+
+
 # [EN] Orchestrator function: decides whether to load HCPCS from a file or from the spending table.
 #      Priority: 1) CMS fixed-width file in raw_data/hcpcs_ref/
 #                2) CSV/TSV reference file in raw_data/
@@ -362,25 +443,46 @@ def load_hcpcs(database_url: str | None = None):
     """Load HCPCS codes from CMS file, CSV file, or spending table."""
     database_url = database_url or os.environ["DATABASE_URL"]
 
-    # [EN] Priority 1: CMS fixed-width file (best source — has both short and long descriptions)
-    # [RU] Приоритет 1: Файл CMS с фиксированной шириной (лучший источник — оба описания)
-    # [PT] Prioridade 1: Arquivo CMS de largura fixa (melhor fonte — ambas as descricoes)
+    loaded_any = False
+
+    # [EN] Step 1: CMS fixed-width file (HCPCS Level II — alphanumeric codes like T1019, A0425)
+    #      This file has both short and long descriptions for Level II codes.
+    # [RU] Шаг 1: Файл CMS с фиксированной шириной (HCPCS Level II — буквенно-цифровые коды)
+    # [PT] Passo 1: Arquivo CMS de largura fixa (HCPCS Level II — codigos alfanumericos)
     cms_file = find_cms_hcpcs_file()
     if cms_file:
         load_hcpcs_from_cms_fixed_width(cms_file, database_url)
-        return
+        loaded_any = True
 
-    # [EN] Priority 2: CSV/TSV reference file
-    # [RU] Приоритет 2: CSV/TSV справочный файл
-    # [PT] Prioridade 2: Arquivo de referencia CSV/TSV
-    hcpcs_file = find_hcpcs_file()
-    if hcpcs_file:
-        load_hcpcs_from_file(hcpcs_file, database_url)
-    else:
-        # [EN] Priority 3: Fallback — extract codes from spending table (no descriptions)
-        # [RU] Приоритет 3: Запасной вариант — извлечение кодов из таблицы расходов (без описаний)
-        # [PT] Prioridade 3: Fallback — extrai codigos da tabela de gastos (sem descricoes)
+    # [EN] Step 2: PFS RVU file (CPT codes — numeric codes like 99213, 99214, plus dental D-codes)
+    #      This fills in descriptions for codes NOT covered by the HCPCS Level II file.
+    #      Uses COALESCE so existing Level II descriptions are preserved.
+    # [RU] Шаг 2: Файл PFS RVU (коды CPT — числовые коды, а также коды стоматологии D)
+    # [PT] Passo 2: Arquivo PFS RVU (codigos CPT — codigos numericos, mais codigos dentais D)
+    pfs_file = find_pfs_rvu_file()
+    if pfs_file:
+        load_hcpcs_from_pfs_rvu(pfs_file, database_url)
+        loaded_any = True
+
+    # [EN] Step 3: CSV/TSV reference file (generic fallback for any other format)
+    # [RU] Шаг 3: CSV/TSV справочный файл (общий запасной вариант)
+    # [PT] Passo 3: Arquivo de referencia CSV/TSV (fallback generico)
+    if not loaded_any:
+        hcpcs_file = find_hcpcs_file()
+        if hcpcs_file:
+            load_hcpcs_from_file(hcpcs_file, database_url)
+            loaded_any = True
+
+    # [EN] Step 4: Fallback — extract codes from spending table (no descriptions)
+    # [RU] Шаг 4: Запасной вариант — извлечение кодов из таблицы расходов (без описаний)
+    # [PT] Passo 4: Fallback — extrai codigos da tabela de gastos (sem descricoes)
+    if not loaded_any:
         load_hcpcs_from_spending(database_url)
+
+    # [EN] Always ensure spending codes exist in hcpcs_codes table for referential integrity
+    # [RU] Всегда гарантируем наличие кодов расходов в таблице hcpcs_codes для ссылочной целостности
+    # [PT] Sempre garante que codigos de gastos existam na tabela hcpcs_codes para integridade referencial
+    load_hcpcs_from_spending(database_url)
 
 
 # [EN] Entry point: runs the HCPCS code load process
