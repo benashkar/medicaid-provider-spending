@@ -151,6 +151,24 @@ class ProviderTaxonomy(db.Model):
     is_primary = db.Column(db.Boolean, default=False)
 
 
+# [EN] Taxonomy code reference — NUCC Health Care Provider Taxonomy Code Set.
+#      Maps 10-character taxonomy codes to human-readable descriptions, groupings, and classifications.
+# [RU] Справочная таблица таксономий — Набор таксономических кодов NUCC.
+#      Сопоставляет 10-символьные коды таксономий с читаемыми описаниями, группами и классификациями.
+# [PT] Referência de códigos de taxonomia — Conjunto de Códigos de Taxonomia NUCC.
+#      Mapeia códigos de taxonomia de 10 caracteres para descrições legíveis, agrupamentos e classificações.
+class TaxonomyCode(db.Model):
+    __tablename__ = "taxonomy_codes"
+
+    taxonomy_code = db.Column(db.Text, primary_key=True)
+    grouping = db.Column(db.Text)
+    classification = db.Column(db.Text)
+    specialization = db.Column(db.Text)
+    display_name = db.Column(db.Text)
+    definition = db.Column(db.Text)
+    section = db.Column(db.Text)
+
+
 # [EN] HCPCS code reference table — Healthcare Common Procedure Coding System.
 #      Maps procedure codes to human-readable descriptions and categories.
 # [RU] Справочная таблица кодов HCPCS — Система кодирования медицинских процедур.

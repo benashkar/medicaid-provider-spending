@@ -77,6 +77,18 @@ CREATE INDEX idx_taxonomies_npi ON provider_taxonomies(npi);
 CREATE INDEX idx_taxonomies_code ON provider_taxonomies(taxonomy_code);
 
 
+-- TAXONOMY CODE REFERENCE (from NUCC Health Care Provider Taxonomy Code Set)
+CREATE TABLE taxonomy_codes (
+    taxonomy_code           TEXT PRIMARY KEY,
+    grouping                TEXT,
+    classification          TEXT,
+    specialization          TEXT,
+    display_name            TEXT,
+    definition              TEXT,
+    section                 TEXT              -- 'Individual' or 'Non-Individual'
+);
+
+
 -- HCPCS CODE REFERENCE
 CREATE TABLE hcpcs_codes (
     hcpcs_code              TEXT PRIMARY KEY,

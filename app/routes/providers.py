@@ -18,7 +18,7 @@
 from flask import Blueprint, render_template, request
 
 from app.models import (
-    db, Provider, Address, ProviderTaxonomy, Spending,
+    db, Provider, Address, ProviderTaxonomy, TaxonomyCode, Spending,
     MvProviderSpendingSummary, HcpcsCode,
 )
 
@@ -127,7 +127,20 @@ def provider_detail(npi):
     # [PT] Buscar provedor pela chave primária NPI, retornar 404 se não encontrado
     provider = Provider.query.get_or_404(npi)
     addresses = Address.query.filter_by(npi=npi).all()
-    taxonomies = ProviderTaxonomy.query.filter_by(npi=npi).all()
+    # [EN] Load taxonomies with their NUCC descriptions via LEFT JOIN to taxonomy_codes
+    # [RU] Загрузить таксономии с описаниями NUCC через LEFT JOIN к taxonomy_codes
+    # [PT] Carregar taxonomias com descrições NUCC via LEFT JOIN para taxonomy_codes
+    taxonomies = db.session.query(
+        ProviderTaxonomy,
+        TaxonomyCode.display_name,
+        TaxonomyCode.classification,
+        TaxonomyCode.specialization,
+        TaxonomyCode.grouping,
+    ).outerjoin(
+        TaxonomyCode, ProviderTaxonomy.taxonomy_code == TaxonomyCode.taxonomy_code
+    ).filter(
+        ProviderTaxonomy.npi == npi
+    ).all()
 
     # [EN] Aggregate this provider's spending by month: sum total_paid, total_claims, and total_benes.
     #      GROUP BY claim_month, ordered chronologically for chart rendering.

@@ -118,15 +118,21 @@
                     <thead>
                         <tr>
                             <th>Taxonomy Code</th>
+                            <th>Specialty</th>
+                            <th>Classification</th>
+                            <th>Grouping</th>
                             <th>License</th>
                             <th>State</th>
                             <th>Primary</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {% for t in taxonomies %}
+                        {% for t, display_name, classification, specialization, grouping in taxonomies %}
                         <tr>
-                            <td>{{ t.taxonomy_code }}</td>
+                            <td><code>{{ t.taxonomy_code }}</code></td>
+                            <td><strong>{{ display_name or '—' }}</strong>{% if specialization %}<br><small class="text-muted">{{ specialization }}</small>{% endif %}</td>
+                            <td>{{ classification or '—' }}</td>
+                            <td>{{ grouping or '—' }}</td>
                             <td>{{ t.license_number or '—' }}</td>
                             <td>{{ t.license_state or '—' }}</td>
                             <td>{{ "Yes" if t.is_primary else "No" }}</td>
