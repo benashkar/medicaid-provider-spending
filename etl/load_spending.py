@@ -1,21 +1,28 @@
 """
 Load HHS Medicaid Provider Spending CSV into PostgreSQL.
 
+Usage:
+    python -m etl.load_spending                     # Full load (truncates table first)
+    python -m etl.load_spending --resume            # Resume: skip existing rows via ON CONFLICT
+    python -m etl.load_spending --resume --refresh-views  # Resume + auto-refresh materialized views
+
 [EN] This module reads the HHS Medicaid Provider Spending CSV file and bulk-loads it into
      the PostgreSQL 'spending' table. It parses dates, integers, and decimal values from
      the raw CSV, validates required fields, and uses PostgreSQL COPY for fast insertion.
      If a COPY batch fails, it falls back to row-by-row INSERT with conflict handling.
+     The --refresh-views flag triggers a refresh of all materialized views after loading.
 
 [RU] Этот модуль читает CSV-файл расходов поставщиков HHS Medicaid и массово загружает его
      в таблицу 'spending' PostgreSQL. Он разбирает даты, целые числа и десятичные значения
      из необработанного CSV, проверяет обязательные поля и использует COPY PostgreSQL для
      быстрой вставки. При ошибке пакетной вставки переключается на построчный INSERT
-     с обработкой конфликтов.
+     с обработкой конфликтов. Флаг --refresh-views запускает обновление всех представлений.
 
 [PT] Este modulo le o arquivo CSV de gastos de provedores HHS Medicaid e faz carga massiva
      na tabela 'spending' do PostgreSQL. Ele analisa datas, inteiros e valores decimais
      do CSV bruto, valida campos obrigatorios e usa COPY do PostgreSQL para insercao rapida.
      Se um lote COPY falhar, recorre a INSERT linha por linha com tratamento de conflitos.
+     O flag --refresh-views aciona a atualizacao de todas as views materializadas.
 """
 
 import csv
@@ -315,13 +322,31 @@ def load_spending(csv_path: Path | None = None, database_url: str | None = None,
     log.info("Total rows loaded: %d", total_rows)
     log.info("Rows skipped: %d", skipped)
 
+    return total_rows
+
+
+def refresh_materialized_views(database_url: str | None = None):
+    """Refresh all materialized views after a data load.
+
+    Delegates to etl.refresh_views which handles the ordered refresh
+    of all 16 materialized views and reports row counts.
+    """
+    from etl.refresh_views import refresh_views
+    database_url = database_url or os.environ["DATABASE_URL"]
+    log.info("=== Auto-refreshing materialized views after load ===")
+    refresh_views(database_url=database_url)
+
 
 # [EN] Entry point: runs the spending data load process
 # [RU] Точка входа: запускает процесс загрузки данных о расходах
 # [PT] Ponto de entrada: executa o processo de carga dos dados de gastos
 def main():
     resume = "--resume" in sys.argv
-    load_spending(resume=resume)
+    do_refresh = "--refresh-views" in sys.argv
+    total = load_spending(resume=resume)
+
+    if do_refresh and total is not None:
+        refresh_materialized_views()
 
 
 if __name__ == "__main__":
