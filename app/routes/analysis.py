@@ -361,17 +361,78 @@ def rapid_ramp():
     )
 
 
+# [EN] Entity designation categories for organization name filtering.
+#      Shell companies and provider mills often use certain legal designations.
+#      Legitimate hospitals/health systems tend to use their full institutional names.
+# [RU] Категории юридических форм для фильтрации названий организаций.
+# [PT] Categorias de designacao de entidade para filtragem de nomes de organizacoes.
+ORG_DESIGNATION_FILTERS = {
+    "llc": {"label": "LLC / PLLC / LLP", "patterns": ["LLC", "PLLC", "LLP"]},
+    "corp": {"label": "Inc / Corp", "patterns": ["INC", "CORP", "CORPORATION"]},
+    "pc_pa": {"label": "PC / PA (Professional)", "patterns": ["PC", "PA"]},
+    "enterprise": {
+        "label": "Enterprise / Holdings / Management",
+        "patterns": ["ENTERPRISE", "ENTERPRISES", "HOLDINGS", "MANAGEMENT"],
+    },
+    "solutions": {
+        "label": "Solutions / Consulting / Services",
+        "patterns": ["SOLUTIONS", "CONSULTING"],
+    },
+    "staffing": {
+        "label": "Staffing / Agency",
+        "patterns": ["STAFFING", "AGENCY"],
+    },
+    "supply": {
+        "label": "Supply / Supplies (DME)",
+        "patterns": ["SUPPLY", "SUPPLIES"],
+    },
+    "wellness": {
+        "label": "Wellness / Global / International",
+        "patterns": ["WELLNESS", "GLOBAL", "INTERNATIONAL"],
+    },
+    "credential": {
+        "label": "DDS / DMD / DPM / OD / DC (Credential in name)",
+        "patterns": ["DDS", "DMD", "DPM", "OD", "DC"],
+    },
+    "hospital": {
+        "label": "Hospital / Community / Foundation",
+        "patterns": ["HOSPITAL", "COMMUNITY", "FOUNDATION"],
+    },
+}
+
+
 @bp.route("/fraud-risk")
 def fraud_risk():
     """Composite fraud risk score dashboard — organizations ranked by number of flags."""
     page = request.args.get("page", 1, type=int)
     min_score = request.args.get("min_score", 1, type=int)
     state = request.args.get("state", "").strip()
+    org_type = request.args.get("org_type", "").strip()
 
     query = MvFraudRiskScore.query.filter(MvFraudRiskScore.risk_score >= min_score)
 
     if state:
         query = query.filter(MvFraudRiskScore.state_code == state.upper())
+
+    # [EN] Filter by organization entity designation (name patterns)
+    if org_type and org_type in ORG_DESIGNATION_FILTERS:
+        patterns = ORG_DESIGNATION_FILTERS[org_type]["patterns"]
+        conditions = []
+        for pat in patterns:
+            # Match word boundary: " LLC", " LLC,", start with "LLC "
+            conditions.append(
+                MvFraudRiskScore.organization_name.ilike(f"% {pat}")
+            )
+            conditions.append(
+                MvFraudRiskScore.organization_name.ilike(f"% {pat},%")
+            )
+            conditions.append(
+                MvFraudRiskScore.organization_name.ilike(f"% {pat}.%")
+            )
+            conditions.append(
+                MvFraudRiskScore.organization_name.ilike(f"{pat} %")
+            )
+        query = query.filter(db.or_(*conditions))
 
     query = query.order_by(
         MvFraudRiskScore.risk_score.desc(),
@@ -392,6 +453,8 @@ def fraud_risk():
         min_score=min_score,
         state=state,
         states=states,
+        org_type=org_type,
+        org_type_filters=ORG_DESIGNATION_FILTERS,
     )
 
 

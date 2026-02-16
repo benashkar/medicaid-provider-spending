@@ -36,6 +36,15 @@
             {% endfor %}
         </select>
     </div>
+    <div class="col-md-3">
+        <label class="form-label fw-bold">Entity Designation</label>
+        <select name="org_type" class="form-select">
+            <option value="">All Types</option>
+            {% for key, info in org_type_filters.items() %}
+            <option value="{{ key }}" {% if org_type == key %}selected{% endif %}>{{ info.label }}</option>
+            {% endfor %}
+        </select>
+    </div>
     <div class="col-md-2 d-flex align-items-end">
         <button type="submit" class="btn btn-primary">Filter</button>
     </div>
@@ -141,19 +150,19 @@
 <nav>
     <ul class="pagination justify-content-center">
         {% if pagination.has_prev %}
-        <li class="page-item"><a class="page-link" href="?page={{ pagination.prev_num }}&min_score={{ min_score }}&state={{ state }}">Previous</a></li>
+        <li class="page-item"><a class="page-link" href="?page={{ pagination.prev_num }}&min_score={{ min_score }}&state={{ state }}&org_type={{ org_type }}">Previous</a></li>
         {% endif %}
         {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
             {% if page_num %}
             <li class="page-item {% if page_num == pagination.page %}active{% endif %}">
-                <a class="page-link" href="?page={{ page_num }}&min_score={{ min_score }}&state={{ state }}">{{ page_num }}</a>
+                <a class="page-link" href="?page={{ page_num }}&min_score={{ min_score }}&state={{ state }}&org_type={{ org_type }}">{{ page_num }}</a>
             </li>
             {% else %}
             <li class="page-item disabled"><span class="page-link">...</span></li>
             {% endif %}
         {% endfor %}
         {% if pagination.has_next %}
-        <li class="page-item"><a class="page-link" href="?page={{ pagination.next_num }}&min_score={{ min_score }}&state={{ state }}">Next</a></li>
+        <li class="page-item"><a class="page-link" href="?page={{ pagination.next_num }}&min_score={{ min_score }}&state={{ state }}&org_type={{ org_type }}">Next</a></li>
         {% endif %}
     </ul>
 </nav>
