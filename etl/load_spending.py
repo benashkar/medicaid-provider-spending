@@ -231,7 +231,7 @@ def copy_batch(cur, batch: list[tuple]):
 # Parameters / Параметры / Parametros:
 #   csv_path (Path | None):      [EN] Path to CSV file (default: CSV_FILE) | [RU] Путь к CSV (по умолч.: CSV_FILE) | [PT] Caminho do CSV (padrao: CSV_FILE)
 #   database_url (str | None):   [EN] PostgreSQL connection string | [RU] Строка подключения PostgreSQL | [PT] String de conexao PostgreSQL
-def load_spending(csv_path: Path | None = None, database_url: str | None = None):
+def load_spending(csv_path: Path | None = None, database_url: str | None = None, resume: bool = False):
     """Stream spending CSV into PostgreSQL using COPY."""
     csv_path = csv_path or CSV_FILE
     database_url = database_url or os.environ["DATABASE_URL"]
@@ -242,32 +242,42 @@ def load_spending(csv_path: Path | None = None, database_url: str | None = None)
 
     log.info("Loading spending data from %s", csv_path)
 
-    # [EN] Connect to PostgreSQL with manual transaction control (autocommit=False)
-    # [RU] Подключаемся к PostgreSQL с ручным управлением транзакциями (autocommit=False)
-    # [PT] Conecta ao PostgreSQL com controle manual de transacoes (autocommit=False)
     conn = psycopg2.connect(database_url)
     conn.autocommit = False
     cur = conn.cursor()
 
-    # [EN] Truncate for clean reload — removes all existing rows and resets identity sequences
-    # [RU] Очистка для чистой перезагрузки — удаляет все строки и сбрасывает последовательности
-    # [PT] Trunca para recarga limpa — remove todas as linhas e reinicia sequencias de identidade
-    cur.execute("TRUNCATE TABLE spending RESTART IDENTITY CASCADE")
-    log.info("Truncated spending table")
+    # [EN] Check existing row count for resume support
+    # [RU] Проверяем существующее количество строк для поддержки возобновления
+    # [PT] Verifica contagem de linhas existentes para suporte a retomada
+    skip_rows = 0
+    if resume:
+        cur.execute("SELECT COUNT(*) FROM spending")
+        skip_rows = cur.fetchone()[0]
+        log.info("Resume mode: %d rows already in DB, will skip those CSV rows", skip_rows)
+    else:
+        cur.execute("TRUNCATE TABLE spending RESTART IDENTITY CASCADE")
+        log.info("Truncated spending table")
 
     total_rows = 0
     skipped = 0
+    csv_row_num = 0
     batch = []
 
-    # [EN] Open CSV and stream through it row by row using DictReader
-    # [RU] Открываем CSV и читаем построчно с помощью DictReader
-    # [PT] Abre o CSV e percorre linha por linha usando DictReader
     with open(csv_path, "r", encoding="utf-8", errors="replace") as f:
         reader = csv.DictReader(f)
         for row in reader:
             transformed = transform_row(row)
             if transformed is None:
                 skipped += 1
+                csv_row_num += 1
+                continue
+
+            csv_row_num += 1
+            # [EN] In resume mode, skip rows that were already loaded
+            # [RU] В режиме возобновления пропускаем уже загруженные строки
+            # [PT] No modo de retomada, pula linhas ja carregadas
+            if resume and (csv_row_num - skipped) <= skip_rows:
+                total_rows += 1
                 continue
 
             batch.append(transformed)
@@ -328,7 +338,8 @@ def load_spending(csv_path: Path | None = None, database_url: str | None = None)
 # [RU] Точка входа: запускает процесс загрузки данных о расходах
 # [PT] Ponto de entrada: executa o processo de carga dos dados de gastos
 def main():
-    load_spending()
+    resume = "--resume" in sys.argv
+    load_spending(resume=resume)
 
 
 if __name__ == "__main__":
