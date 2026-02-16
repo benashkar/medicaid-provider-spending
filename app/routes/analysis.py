@@ -1,21 +1,53 @@
-"""Analysis routes for advanced spending views."""
+"""
+[EN] Analysis routes for advanced spending views.
+     Provides pages for deeper Medicare spending analysis including:
+     top organizations by spending, month-over-month spending growth anomalies,
+     statistical outlier detection, geographic concentration by ZIP code,
+     and billing-servicing provider network relationships.
+
+[RU] Маршруты анализа для расширенных представлений расходов.
+     Предоставляет страницы для углублённого анализа расходов Medicare, включая:
+     топ-организации по расходам, аномалии роста расходов от месяца к месяцу,
+     статистическое обнаружение выбросов, географическую концентрацию по почтовым индексам
+     и сетевые связи между выставляющими счета и обслуживающими поставщиками.
+
+[PT] Rotas de análise para visualizações avançadas de gastos.
+     Fornece páginas para análise aprofundada de gastos do Medicare, incluindo:
+     principais organizações por gastos, anomalias de crescimento mensal,
+     detecção estatística de outliers, concentração geográfica por CEP
+     e relacionamentos de rede entre provedores faturadores e atendentes.
+"""
 
 from flask import Blueprint, render_template, request
 
 from app.models import (
     db, MvTopOrganizations, MvSpendingGrowth, MvOutlierProviders,
     MvGeographicConcentration, MvBillingServicingNetwork,
+    MvOrgYoyGrowth, MvAddressClustering, MvRapidRamp, MvFraudRiskScore,
+    MvAvgClaimByProvider, MvOfficialNetwork,
 )
 
+# [EN] Create the "analysis" blueprint with URL prefix "/analysis" — all routes start with /analysis/...
+# [RU] Создать блюпринт «analysis» с префиксом URL "/analysis" — все маршруты начинаются с /analysis/...
+# [PT] Criar o blueprint "analysis" com prefixo de URL "/analysis" — todas as rotas começam com /analysis/...
 bp = Blueprint("analysis", __name__, url_prefix="/analysis")
 
 
+# [EN] Analysis overview page ("/analysis/") — landing page with links to all analysis sub-pages.
+# [RU] Обзорная страница анализа ("/analysis/") — страница со ссылками на все подстраницы анализа.
+# [PT] Página de visão geral da análise ("/analysis/") — página com links para todas as sub-páginas de análise.
 @bp.route("/")
 def index():
     """Analysis overview page."""
     return render_template("analysis/index.html")
 
 
+# [EN] Top organizations page ("/analysis/top-organizations") — ranks the top 100 organizations
+#      by lifetime total spending. Useful for identifying the largest Medicare spenders.
+# [RU] Страница топ-организаций ("/analysis/top-organizations") — ранжирует 100 организаций
+#      по общему объёму расходов за всё время. Полезно для выявления крупнейших получателей средств Medicare.
+# [PT] Página de principais organizações ("/analysis/top-organizations") — classifica as 100 organizações
+#      com maiores gastos acumulados. Útil para identificar os maiores gastadores do Medicare.
 @bp.route("/top-organizations")
 def top_organizations():
     """Top 100 organizations by lifetime spending."""
@@ -25,10 +57,22 @@ def top_organizations():
     return render_template("analysis/top_organizations.html", orgs=orgs)
 
 
+# [EN] Spending growth page ("/analysis/spending-growth") — identifies providers with large
+#      month-over-month payment increases (>100%). Paginated, sorted by percentage change descending.
+#      These spikes may indicate billing anomalies or changes in provider activity.
+# [RU] Страница роста расходов ("/analysis/spending-growth") — выявляет поставщиков с большим
+#      ростом выплат от месяца к месяцу (>100%). С пагинацией, сортировка по убыванию процентного изменения.
+#      Такие скачки могут указывать на аномалии биллинга или изменения в деятельности поставщика.
+# [PT] Página de crescimento de gastos ("/analysis/spending-growth") — identifica provedores com grandes
+#      aumentos mensais de pagamento (>100%). Paginado, ordenado por variação percentual decrescente.
+#      Esses picos podem indicar anomalias de faturamento ou mudanças na atividade do provedor.
 @bp.route("/spending-growth")
 def spending_growth():
     """Month-over-month spending growth anomalies (>100% increase)."""
     page = request.args.get("page", 1, type=int)
+    # [EN] Query all spending growth records, sorted by largest percentage change first
+    # [RU] Запросить все записи роста расходов, отсортированные по наибольшему процентному изменению
+    # [PT] Consultar todos os registros de crescimento de gastos, ordenados pelo maior percentual de mudança
     query = MvSpendingGrowth.query.order_by(
         MvSpendingGrowth.pct_change.desc()
     )
@@ -40,10 +84,22 @@ def spending_growth():
     )
 
 
+# [EN] Outlier providers page ("/analysis/outliers") — shows providers whose spending on a specific
+#      HCPCS code is more than 2 standard deviations above the peer group mean.
+#      Sorted by z-score descending (most anomalous first). Paginated.
+# [RU] Страница аномальных поставщиков ("/analysis/outliers") — показывает поставщиков, чьи расходы
+#      по конкретному коду HCPCS превышают среднее по группе более чем на 2 стандартных отклонения.
+#      Сортировка по z-оценке по убыванию (наиболее аномальные первыми). С пагинацией.
+# [PT] Página de provedores atípicos ("/analysis/outliers") — mostra provedores cujos gastos em um
+#      código HCPCS específico excedem a média do grupo em mais de 2 desvios padrão.
+#      Ordenado por z-score decrescente (mais anômalos primeiro). Paginado.
 @bp.route("/outliers")
 def outlier_providers():
     """Providers with spending >2 std dev above peer mean per HCPCS code."""
     page = request.args.get("page", 1, type=int)
+    # [EN] Query outlier records sorted by z-score (highest statistical deviation first)
+    # [RU] Запросить записи о выбросах, отсортированные по z-оценке (наибольшее статистическое отклонение первым)
+    # [PT] Consultar registros de outliers ordenados por z-score (maior desvio estatístico primeiro)
     query = MvOutlierProviders.query.order_by(
         MvOutlierProviders.z_score.desc()
     )
@@ -55,12 +111,24 @@ def outlier_providers():
     )
 
 
+# [EN] Geographic concentration page ("/analysis/geographic") — shows spending density by ZIP code.
+#      Supports optional state filter. Paginated, sorted by total_paid descending.
+#      Helps identify geographic hotspots of Medicare spending.
+# [RU] Страница географической концентрации ("/analysis/geographic") — показывает плотность расходов по почтовым индексам.
+#      Поддерживает необязательный фильтр по штату. С пагинацией, сортировка по total_paid по убыванию.
+#      Помогает выявить географические очаги расходов Medicare.
+# [PT] Página de concentração geográfica ("/analysis/geographic") — mostra a densidade de gastos por CEP.
+#      Suporta filtro opcional por estado. Paginado, ordenado por total_paid decrescente.
+#      Ajuda a identificar hotspots geográficos de gastos do Medicare.
 @bp.route("/geographic")
 def geographic_concentration():
     """Geographic concentration by ZIP code."""
     state = request.args.get("state", "").strip()
     query = MvGeographicConcentration.query
 
+    # [EN] If a state is specified, filter results to that state only
+    # [RU] Если указан штат, фильтровать результаты только по этому штату
+    # [PT] Se um estado for especificado, filtrar resultados apenas para esse estado
     if state:
         query = query.filter(MvGeographicConcentration.state_code == state.upper())
 
@@ -69,7 +137,9 @@ def geographic_concentration():
     page = request.args.get("page", 1, type=int)
     pagination = query.paginate(page=page, per_page=50, error_out=False)
 
-    # Get states for filter
+    # [EN] Get distinct state codes for the dropdown filter in the UI
+    # [RU] Получить уникальные коды штатов для выпадающего фильтра в интерфейсе
+    # [PT] Obter códigos de estado distintos para o filtro dropdown na interface
     states = db.session.query(
         MvGeographicConcentration.state_code
     ).distinct().order_by(
@@ -86,12 +156,30 @@ def geographic_concentration():
     )
 
 
+# [EN] Billing network page ("/analysis/network") — shows relationships between billing and servicing providers.
+#      A billing provider submits claims; a servicing provider performs the service.
+#      Supports optional NPI filter to show connections for a specific provider.
+#      Sorted by total_paid descending. Paginated.
+# [RU] Страница сети биллинга ("/analysis/network") — показывает связи между выставляющими счета и обслуживающими поставщиками.
+#      Выставляющий счета подаёт заявки; обслуживающий поставщик оказывает услугу.
+#      Поддерживает необязательный фильтр по NPI для отображения связей конкретного поставщика.
+#      Сортировка по total_paid по убыванию. С пагинацией.
+# [PT] Página de rede de faturamento ("/analysis/network") — mostra relacionamentos entre provedores faturadores e atendentes.
+#      O provedor faturador submete sinistros; o provedor atendente realiza o serviço.
+#      Suporta filtro opcional por NPI para mostrar conexões de um provedor específico.
+#      Ordenado por total_paid decrescente. Paginado.
 @bp.route("/network")
 def billing_network():
     """Billing vs servicing provider relationship network."""
     npi = request.args.get("npi", "").strip()
     query = MvBillingServicingNetwork.query
 
+    # [EN] If an NPI is specified, filter to show only relationships where that NPI
+    #      appears as either the billing or the servicing provider
+    # [RU] Если указан NPI, фильтровать, чтобы показать только связи, где этот NPI
+    #      выступает в роли выставляющего счета или обслуживающего поставщика
+    # [PT] Se um NPI for especificado, filtrar para mostrar apenas relacionamentos onde esse NPI
+    #      aparece como provedor faturador ou atendente
     if npi:
         query = query.filter(
             db.or_(
@@ -110,4 +198,229 @@ def billing_network():
         items=pagination.items,
         pagination=pagination,
         npi=npi,
+    )
+
+
+# =============================================================================
+# [EN] FRAUD DETECTION ROUTES — Year-over-year growth, address clustering,
+#      rapid ramp detection, and composite fraud risk scoring.
+# [RU] МАРШРУТЫ ОБНАРУЖЕНИЯ МОШЕННИЧЕСТВА — Рост год к году, кластеризация адресов,
+#      обнаружение быстрого роста и комплексная оценка риска мошенничества.
+# [PT] ROTAS DE DETECÇÃO DE FRAUDE — Crescimento ano a ano, clustering de endereços,
+#      detecção de rampa rápida e pontuação composta de risco de fraude.
+# =============================================================================
+
+
+@bp.route("/yoy-growth")
+def yoy_growth():
+    """Year-over-year organization spending growth with filterable year range."""
+    page = request.args.get("page", 1, type=int)
+    sort = request.args.get("sort", "dollar")  # "dollar" or "pct"
+    year = request.args.get("year", "", type=str).strip()
+    state = request.args.get("state", "").strip()
+
+    query = MvOrgYoyGrowth.query
+
+    if year:
+        query = query.filter(MvOrgYoyGrowth.claim_year == int(year))
+    if state:
+        query = query.filter(MvOrgYoyGrowth.state_code == state.upper())
+
+    if sort == "pct":
+        query = query.order_by(MvOrgYoyGrowth.pct_increase.desc())
+    else:
+        query = query.order_by(MvOrgYoyGrowth.dollar_increase.desc())
+
+    pagination = query.paginate(page=page, per_page=50, error_out=False)
+
+    # Get available years and states for filter dropdowns
+    years = db.session.query(
+        MvOrgYoyGrowth.claim_year
+    ).distinct().order_by(MvOrgYoyGrowth.claim_year.desc()).all()
+    years = [y[0] for y in years]
+
+    states = db.session.query(
+        MvOrgYoyGrowth.state_code
+    ).distinct().order_by(MvOrgYoyGrowth.state_code).all()
+    states = [s[0] for s in states if s[0]]
+
+    return render_template(
+        "analysis/yoy_growth.html",
+        items=pagination.items,
+        pagination=pagination,
+        sort=sort,
+        year=year,
+        state=state,
+        years=years,
+        states=states,
+    )
+
+
+@bp.route("/address-clustering")
+def address_clustering():
+    """Same-building address clustering for fraud detection."""
+    page = request.args.get("page", 1, type=int)
+    state = request.args.get("state", "").strip()
+    min_providers = request.args.get("min_providers", 2, type=int)
+
+    query = MvAddressClustering.query
+
+    if state:
+        query = query.filter(MvAddressClustering.state_code == state.upper())
+    if min_providers > 2:
+        query = query.filter(MvAddressClustering.provider_count >= min_providers)
+
+    query = query.order_by(MvAddressClustering.combined_spending.desc())
+    pagination = query.paginate(page=page, per_page=50, error_out=False)
+
+    states = db.session.query(
+        MvAddressClustering.state_code
+    ).distinct().order_by(MvAddressClustering.state_code).all()
+    states = [s[0] for s in states if s[0]]
+
+    return render_template(
+        "analysis/address_clustering.html",
+        items=pagination.items,
+        pagination=pagination,
+        state=state,
+        states=states,
+        min_providers=min_providers,
+    )
+
+
+@bp.route("/rapid-ramp")
+def rapid_ramp():
+    """Recently registered organizations with fast spending growth."""
+    page = request.args.get("page", 1, type=int)
+    sort = request.args.get("sort", "paid")  # "paid" or "speed"
+    state = request.args.get("state", "").strip()
+
+    query = MvRapidRamp.query
+
+    if state:
+        query = query.filter(MvRapidRamp.state_code == state.upper())
+
+    if sort == "speed":
+        # Fastest ramp = highest average monthly spend
+        query = query.order_by(MvRapidRamp.avg_monthly_spend.desc())
+    else:
+        query = query.order_by(MvRapidRamp.lifetime_paid.desc())
+
+    pagination = query.paginate(page=page, per_page=50, error_out=False)
+
+    states = db.session.query(
+        MvRapidRamp.state_code
+    ).distinct().order_by(MvRapidRamp.state_code).all()
+    states = [s[0] for s in states if s[0]]
+
+    return render_template(
+        "analysis/rapid_ramp.html",
+        items=pagination.items,
+        pagination=pagination,
+        sort=sort,
+        state=state,
+        states=states,
+    )
+
+
+@bp.route("/fraud-risk")
+def fraud_risk():
+    """Composite fraud risk score dashboard — organizations ranked by number of flags."""
+    page = request.args.get("page", 1, type=int)
+    min_score = request.args.get("min_score", 1, type=int)
+    state = request.args.get("state", "").strip()
+
+    query = MvFraudRiskScore.query.filter(MvFraudRiskScore.risk_score >= min_score)
+
+    if state:
+        query = query.filter(MvFraudRiskScore.state_code == state.upper())
+
+    query = query.order_by(
+        MvFraudRiskScore.risk_score.desc(),
+        MvFraudRiskScore.lifetime_paid.desc(),
+    )
+
+    pagination = query.paginate(page=page, per_page=50, error_out=False)
+
+    states = db.session.query(
+        MvFraudRiskScore.state_code
+    ).distinct().order_by(MvFraudRiskScore.state_code).all()
+    states = [s[0] for s in states if s[0]]
+
+    return render_template(
+        "analysis/fraud_risk.html",
+        items=pagination.items,
+        pagination=pagination,
+        min_score=min_score,
+        state=state,
+        states=states,
+    )
+
+
+@bp.route("/avg-claim")
+def avg_claim():
+    """Average claim amount by provider — sortable highest/lowest, filterable by state/type."""
+    page = request.args.get("page", 1, type=int)
+    sort = request.args.get("sort", "highest")  # "highest" or "lowest"
+    state = request.args.get("state", "").strip()
+    entity = request.args.get("entity", "", type=str).strip()  # "1" or "2" or ""
+
+    query = MvAvgClaimByProvider.query
+
+    if state:
+        query = query.filter(MvAvgClaimByProvider.state_code == state.upper())
+    if entity in ("1", "2"):
+        query = query.filter(MvAvgClaimByProvider.entity_type == int(entity))
+
+    if sort == "lowest":
+        query = query.order_by(MvAvgClaimByProvider.avg_claim_amount.asc())
+    else:
+        query = query.order_by(MvAvgClaimByProvider.avg_claim_amount.desc())
+
+    pagination = query.paginate(page=page, per_page=50, error_out=False)
+
+    states = db.session.query(
+        MvAvgClaimByProvider.state_code
+    ).distinct().order_by(MvAvgClaimByProvider.state_code).all()
+    states = [s[0] for s in states if s[0]]
+
+    return render_template(
+        "analysis/avg_claim.html",
+        items=pagination.items,
+        pagination=pagination,
+        sort=sort,
+        state=state,
+        entity=entity,
+        states=states,
+    )
+
+
+@bp.route("/official-network")
+def official_network():
+    """Authorized officials controlling multiple organizations — fraud indicator."""
+    page = request.args.get("page", 1, type=int)
+    sort = request.args.get("sort", "count")  # "count" or "spending"
+    min_orgs = request.args.get("min_orgs", 2, type=int)
+
+    query = MvOfficialNetwork.query
+
+    if min_orgs > 2:
+        query = query.filter(MvOfficialNetwork.org_count >= min_orgs)
+
+    if sort == "spending":
+        query = query.order_by(MvOfficialNetwork.combined_spending.desc())
+    else:
+        query = query.order_by(
+            MvOfficialNetwork.org_count.desc(),
+            MvOfficialNetwork.combined_spending.desc(),
+        )
+
+    pagination = query.paginate(page=page, per_page=50, error_out=False)
+
+    return render_template(
+        "analysis/official_network.html",
+        items=pagination.items,
+        pagination=pagination,
+        sort=sort,
+        min_orgs=min_orgs,
     )

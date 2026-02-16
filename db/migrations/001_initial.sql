@@ -45,8 +45,10 @@ CREATE TABLE IF NOT EXISTS addresses (
     phone                   TEXT,
     fax                     TEXT,
     street_number           TEXT,
+    street_pre_direction    TEXT,
     street_name             TEXT,
     street_suffix           TEXT,
+    street_post_direction   TEXT,
     unit_type               TEXT,
     unit_number             TEXT,
     UNIQUE(npi, address_purpose)

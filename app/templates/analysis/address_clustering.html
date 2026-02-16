@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}Address Clustering — Fraud Detection{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{{ url_for('analysis.index') }}">Analysis</a></li>
+        <li class="breadcrumb-item active">Address Clustering</li>
+    </ol>
+</nav>
+
+<h2 class="mb-2">Same-Building Provider Clustering</h2>
+<p class="text-muted mb-3">
+    Providers grouped by building location (street number + street name + ZIP).
+    Multiple providers at the same address with different unit numbers is a
+    common fraud indicator — especially if they bill for similar services.
+</p>
+
+<form method="get" class="row g-2 mb-4">
+    <div class="col-md-2">
+        <label class="form-label fw-bold">State</label>
+        <select name="state" class="form-select">
+            <option value="">All States</option>
+            {% for s in states %}
+            <option value="{{ s }}" {% if state == s %}selected{% endif %}>{{ s }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="col-md-2">
+        <label class="form-label fw-bold">Min Providers</label>
+        <select name="min_providers" class="form-select">
+            <option value="2" {% if min_providers == 2 %}selected{% endif %}>2+</option>
+            <option value="3" {% if min_providers == 3 %}selected{% endif %}>3+</option>
+            <option value="5" {% if min_providers == 5 %}selected{% endif %}>5+</option>
+            <option value="10" {% if min_providers == 10 %}selected{% endif %}>10+</option>
+        </select>
+    </div>
+    <div class="col-md-2 d-flex align-items-end">
+        <button type="submit" class="btn btn-primary">Filter</button>
+    </div>
+</form>
+
+<table class="table table-striped table-sm">
+    <thead class="table-dark">
+        <tr>
+            <th>#</th>
+            <th>Building Address</th>
+            <th>City</th>
+            <th>State</th>
+            <th>ZIP</th>
+            <th class="text-end">Providers</th>
+            <th class="text-end">Units</th>
+            <th class="text-end">Combined Spending</th>
+            <th class="text-end">Claims</th>
+            <th>Organizations</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for item in items %}
+        <tr class="{% if item.provider_count >= 5 %}table-danger{% elif item.provider_count >= 3 %}table-warning{% endif %}">
+            <td>{{ (pagination.page - 1) * pagination.per_page + loop.index }}</td>
+            <td>{{ item.building_number }} {{ item.building_street }}</td>
+            <td>{{ item.city or '—' }}</td>
+            <td>{{ item.state_code or '—' }}</td>
+            <td>{{ item.zip5 or '—' }}</td>
+            <td class="text-end fw-bold">{{ item.provider_count }}</td>
+            <td class="text-end">{{ item.distinct_units }}</td>
+            <td class="text-end">${{ "{:,.0f}".format(item.combined_spending or 0) }}</td>
+            <td class="text-end">{{ "{:,}".format(item.combined_claims or 0) }}</td>
+            <td>
+                {% if item.org_names %}
+                    {% for name in item.org_names[:3] %}
+                        <small class="d-block text-truncate" style="max-width: 250px;" title="{{ name }}">{{ name }}</small>
+                    {% endfor %}
+                    {% if item.org_names|length > 3 %}
+                        <small class="text-muted">+{{ item.org_names|length - 3 }} more</small>
+                    {% endif %}
+                {% else %}
+                    —
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+{% if pagination.pages > 1 %}
+<nav>
+    <ul class="pagination justify-content-center">
+        {% if pagination.has_prev %}
+        <li class="page-item"><a class="page-link" href="?page={{ pagination.prev_num }}&state={{ state }}&min_providers={{ min_providers }}">Previous</a></li>
+        {% endif %}
+        {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+            {% if page_num %}
+            <li class="page-item {% if page_num == pagination.page %}active{% endif %}">
+                <a class="page-link" href="?page={{ page_num }}&state={{ state }}&min_providers={{ min_providers }}">{{ page_num }}</a>
+            </li>
+            {% else %}
+            <li class="page-item disabled"><span class="page-link">...</span></li>
+            {% endif %}
+        {% endfor %}
+        {% if pagination.has_next %}
+        <li class="page-item"><a class="page-link" href="?page={{ pagination.next_num }}&state={{ state }}&min_providers={{ min_providers }}">Next</a></li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+{% endblock %}

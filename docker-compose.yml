@@ -1,0 +1,196 @@
+# =============================================================================
+# docker-compose.yml — Local Development Stack
+# =============================================================================
+# EN: Starts the Flask dashboard and a PostgreSQL database for local
+#     development. Simply run `docker-compose up --build` and visit
+#     http://localhost:10000. The database data is persisted in a named
+#     volume so it survives container restarts.
+#
+# RU: Запускает панель мониторинга Flask и базу данных PostgreSQL для
+#     локальной разработки. Просто выполните `docker-compose up --build`
+#     и откройте http://localhost:10000. Данные базы сохраняются в
+#     именованном томе и не теряются при перезапуске контейнеров.
+#
+# PT: Inicia o painel Flask e um banco de dados PostgreSQL para
+#     desenvolvimento local. Basta executar `docker-compose up --build`
+#     e acessar http://localhost:10000. Os dados do banco sao persistidos
+#     em um volume nomeado e sobrevivem a reinicializacoes dos conteineres.
+# =============================================================================
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # Web Service (Flask Dashboard)
+  # EN: The main application. It builds from the project Dockerfile,
+  #     connects to the PostgreSQL database via DATABASE_URL, and
+  #     waits for the database to be ready before starting.
+  # RU: Основное приложение. Собирается из Dockerfile проекта,
+  #     подключается к базе данных PostgreSQL через DATABASE_URL и
+  #     ожидает готовности базы данных перед запуском.
+  # PT: A aplicacao principal. Compilada a partir do Dockerfile do projeto,
+  #     conecta-se ao banco de dados PostgreSQL via DATABASE_URL e
+  #     aguarda o banco estar pronto antes de iniciar.
+  # ---------------------------------------------------------------------------
+  web:
+    build:
+      # EN: Build context is the project root directory.
+      # RU: Контекст сборки — корневой каталог проекта.
+      # PT: O contexto de compilacao e o diretorio raiz do projeto.
+      context: .
+      dockerfile: Dockerfile
+
+    # EN: Map container port 10000 to host port 10000 so the dashboard
+    #     is accessible at http://localhost:10000 in the browser.
+    # RU: Проброс порта 10000 контейнера на порт 10000 хоста, чтобы
+    #     панель мониторинга была доступна по адресу http://localhost:10000.
+    # PT: Mapeia a porta 10000 do conteiner para a porta 10000 do host,
+    #     tornando o painel acessivel em http://localhost:10000 no navegador.
+    ports:
+      - "10000:10000"
+
+    environment:
+      # EN: DATABASE_URL points to the PostgreSQL service defined below.
+      #     The hostname "db" is resolved by Docker's internal DNS to the
+      #     database container's IP address on the shared network.
+      # RU: DATABASE_URL указывает на сервис PostgreSQL, определённый ниже.
+      #     Имя хоста "db" разрешается внутренним DNS Docker в IP-адрес
+      #     контейнера базы данных в общей сети.
+      # PT: DATABASE_URL aponta para o servico PostgreSQL definido abaixo.
+      #     O hostname "db" e resolvido pelo DNS interno do Docker para o
+      #     endereco IP do conteiner do banco de dados na rede compartilhada.
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/medicaid_spending
+
+      # EN: Flask environment set to development for debug features.
+      # RU: Среда Flask установлена в development для отладочных функций.
+      # PT: Ambiente Flask definido como development para recursos de depuracao.
+      - FLASK_ENV=development
+
+      # EN: Secret key for Flask sessions. Change in production!
+      # RU: Секретный ключ для сессий Flask. Сменить в продакшене!
+      # PT: Chave secreta para sessoes Flask. Altere em producao!
+      - SECRET_KEY=local-dev-secret-key
+
+    # EN: The "depends_on" with condition ensures the web service waits
+    #     until PostgreSQL passes its health check before starting.
+    #     This prevents connection errors on first startup.
+    # RU: Директива "depends_on" с условием гарантирует, что веб-сервис
+    #     дождётся прохождения проверки состояния PostgreSQL перед
+    #     запуском. Это предотвращает ошибки подключения при первом запуске.
+    # PT: A diretiva "depends_on" com condicao garante que o servico web
+    #     aguarde o PostgreSQL passar na verificacao de integridade antes
+    #     de iniciar. Isso evita erros de conexao na primeira inicializacao.
+    depends_on:
+      db:
+        condition: service_healthy
+
+    # EN: Restart the container automatically if it crashes.
+    # RU: Автоматический перезапуск контейнера в случае сбоя.
+    # PT: Reinicia o conteiner automaticamente em caso de falha.
+    restart: unless-stopped
+
+    # EN: Connect to the application network for inter-service communication.
+    # RU: Подключение к сети приложения для связи между сервисами.
+    # PT: Conecta a rede da aplicacao para comunicacao entre servicos.
+    networks:
+      - app-network
+
+  # ---------------------------------------------------------------------------
+  # Database Service (PostgreSQL 16)
+  # EN: A standard PostgreSQL 16 instance for storing Medicaid spending data.
+  #     Data is persisted in a Docker named volume. A health check ensures
+  #     the database accepts connections before the web service starts.
+  # RU: Стандартный экземпляр PostgreSQL 16 для хранения данных о расходах
+  #     Medicaid. Данные сохраняются в именованном томе Docker. Проверка
+  #     состояния гарантирует, что база данных принимает подключения до
+  #     запуска веб-сервиса.
+  # PT: Uma instancia padrao do PostgreSQL 16 para armazenar dados de gastos
+  #     do Medicaid. Os dados sao persistidos em um volume nomeado do Docker.
+  #     Uma verificacao de integridade garante que o banco aceita conexoes
+  #     antes do servico web iniciar.
+  # ---------------------------------------------------------------------------
+  db:
+    image: postgres:16-alpine
+
+    environment:
+      # EN: PostgreSQL credentials and database name. These match the
+      #     DATABASE_URL configured in the web service above.
+      # RU: Учётные данные и имя базы данных PostgreSQL. Они соответствуют
+      #     DATABASE_URL, настроенному в веб-сервисе выше.
+      # PT: Credenciais e nome do banco de dados PostgreSQL. Correspondem
+      #     ao DATABASE_URL configurado no servico web acima.
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=medicaid_spending
+
+    # EN: Persist database data in a named volume. Without this, all data
+    #     would be lost when the container is removed.
+    # RU: Сохранение данных базы в именованном томе. Без этого все данные
+    #     были бы потеряны при удалении контейнера.
+    # PT: Persiste os dados do banco em um volume nomeado. Sem isso, todos
+    #     os dados seriam perdidos quando o conteiner fosse removido.
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+    # EN: Expose PostgreSQL port to the host for direct access with tools
+    #     like psql, pgAdmin, or DBeaver during development.
+    # RU: Проброс порта PostgreSQL на хост для прямого доступа с помощью
+    #     инструментов вроде psql, pgAdmin или DBeaver при разработке.
+    # PT: Expoe a porta do PostgreSQL para o host, permitindo acesso direto
+    #     com ferramentas como psql, pgAdmin ou DBeaver durante o desenvolvimento.
+    ports:
+      - "5432:5432"
+
+    # EN: Health check using pg_isready to confirm PostgreSQL is accepting
+    #     connections. The web service waits for this check to pass.
+    # RU: Проверка состояния с помощью pg_isready для подтверждения, что
+    #     PostgreSQL принимает подключения. Веб-сервис ожидает прохождения
+    #     этой проверки.
+    # PT: Verificacao de integridade usando pg_isready para confirmar que o
+    #     PostgreSQL aceita conexoes. O servico web aguarda esta verificacao.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d medicaid_spending"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+    # EN: Restart automatically unless explicitly stopped.
+    # RU: Автоматический перезапуск, если контейнер не был остановлен явно.
+    # PT: Reinicia automaticamente, exceto se parado explicitamente.
+    restart: unless-stopped
+
+    networks:
+      - app-network
+
+
+# =============================================================================
+# Networks
+# EN: A dedicated bridge network for inter-service communication. Docker
+#     provides automatic DNS resolution: the web service can reach the
+#     database using the hostname "db".
+# RU: Выделенная мостовая сеть для связи между сервисами. Docker
+#     обеспечивает автоматическое разрешение DNS: веб-сервис может
+#     обращаться к базе данных по имени хоста "db".
+# PT: Uma rede bridge dedicada para comunicacao entre servicos. O Docker
+#     fornece resolucao DNS automatica: o servico web pode acessar o
+#     banco de dados usando o hostname "db".
+# =============================================================================
+networks:
+  app-network:
+    driver: bridge
+
+
+# =============================================================================
+# Volumes
+# EN: Named volume for PostgreSQL data persistence. Data survives container
+#     restarts and rebuilds. To completely reset the database, run:
+#     docker-compose down -v
+# RU: Именованный том для сохранения данных PostgreSQL. Данные сохраняются
+#     при перезапусках и пересборках контейнеров. Для полного сброса базы
+#     данных выполните: docker-compose down -v
+# PT: Volume nomeado para persistencia dos dados do PostgreSQL. Os dados
+#     sobrevivem a reinicializacoes e reconstrucoes. Para resetar
+#     completamente o banco, execute: docker-compose down -v
+# =============================================================================
+volumes:
+  pgdata:

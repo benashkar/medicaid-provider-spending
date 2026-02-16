@@ -51,4 +51,62 @@
         </div>
     </div>
 </div>
+
+<h2 class="mb-4 mt-5">Fraud Detection</h2>
+<div class="row g-3">
+    <div class="col-md-4">
+        <div class="card h-100 border-danger">
+            <div class="card-body">
+                <h5 class="card-title text-danger">Fraud Risk Score</h5>
+                <p class="card-text">Composite risk score (0-5) combining YoY spikes, outliers, address clustering, MoM spikes, and network complexity.</p>
+                <a href="{{ url_for('analysis.fraud_risk') }}" class="btn btn-danger">View</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card h-100 border-warning">
+            <div class="card-body">
+                <h5 class="card-title text-warning">YoY Organization Growth</h5>
+                <p class="card-text">Year-over-year spending increases by organization. Filter by year, state, and sort by raw $ or % increase.</p>
+                <a href="{{ url_for('analysis.yoy_growth') }}" class="btn btn-warning">View</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card h-100 border-info">
+            <div class="card-body">
+                <h5 class="card-title text-info">Address Clustering</h5>
+                <p class="card-text">Multiple providers at the same building address. Same address, different unit numbers = fraud flag.</p>
+                <a href="{{ url_for('analysis.address_clustering') }}" class="btn btn-info">View</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card h-100 border-dark">
+            <div class="card-body">
+                <h5 class="card-title">Rapid Ramp Detection</h5>
+                <p class="card-text">Newly registered organizations (since 2020) that quickly reached high spending. Fast ramp = suspicious.</p>
+                <a href="{{ url_for('analysis.rapid_ramp') }}" class="btn btn-dark">View</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card h-100 border-danger">
+            <div class="card-body">
+                <h5 class="card-title text-danger">Official Network</h5>
+                <p class="card-text">People controlling multiple Medicaid organizations. One person with 5+ companies is a major fraud flag.</p>
+                <a href="{{ url_for('analysis.official_network') }}" class="btn btn-danger">View</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card h-100 border-primary">
+            <div class="card-body">
+                <h5 class="card-title text-primary">Average Claim Amount</h5>
+                <p class="card-text">Average payment per claim by provider. Sort highest/lowest, filter by state and entity type.</p>
+                <a href="{{ url_for('analysis.avg_claim') }}" class="btn btn-primary">View</a>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}

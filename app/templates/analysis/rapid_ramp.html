@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}Rapid Ramp Detection — Fraud Detection{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{{ url_for('analysis.index') }}">Analysis</a></li>
+        <li class="breadcrumb-item active">Rapid Ramp Detection</li>
+    </ol>
+</nav>
+
+<h2 class="mb-2">Rapid Ramp — New Organizations with Fast Spending Growth</h2>
+<p class="text-muted mb-3">
+    Organizations registered since 2020 that quickly reached high spending levels (>$100K lifetime).
+    A newly registered provider that immediately bills at high volume is a classic fraud pattern.
+</p>
+
+<form method="get" class="row g-2 mb-4">
+    <div class="col-md-2">
+        <label class="form-label fw-bold">Sort By</label>
+        <select name="sort" class="form-select">
+            <option value="paid" {% if sort == 'paid' %}selected{% endif %}>Total Paid</option>
+            <option value="speed" {% if sort == 'speed' %}selected{% endif %}>Avg Monthly Spend</option>
+        </select>
+    </div>
+    <div class="col-md-2">
+        <label class="form-label fw-bold">State</label>
+        <select name="state" class="form-select">
+            <option value="">All States</option>
+            {% for s in states %}
+            <option value="{{ s }}" {% if state == s %}selected{% endif %}>{{ s }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="col-md-2 d-flex align-items-end">
+        <button type="submit" class="btn btn-primary">Filter</button>
+    </div>
+</form>
+
+<table class="table table-striped table-sm">
+    <thead class="table-dark">
+        <tr>
+            <th>#</th>
+            <th>NPI</th>
+            <th>Organization</th>
+            <th>Authorized Official</th>
+            <th>State</th>
+            <th>NPI Registered</th>
+            <th>First Claim</th>
+            <th class="text-end">Days to 1st Claim</th>
+            <th class="text-end">Active Months</th>
+            <th class="text-end">Avg Monthly</th>
+            <th class="text-end">Lifetime Paid</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for item in items %}
+        <tr class="{% if (item.days_to_first_claim is not none and item.days_to_first_claim < 90) and (item.avg_monthly_spend or 0) > 100000 %}table-danger{% elif (item.avg_monthly_spend or 0) > 50000 %}table-warning{% endif %}">
+            <td>{{ (pagination.page - 1) * pagination.per_page + loop.index }}</td>
+            <td>
+                <a href="{{ url_for('providers.provider_detail', npi=item.billing_npi.strip()) }}">
+                    {{ item.billing_npi.strip() }}
+                </a>
+            </td>
+            <td>{{ item.organization_name or '—' }}</td>
+            <td>{{ item.authorized_official_first or '' }} {{ item.authorized_official_last or '' }}</td>
+            <td>{{ item.state_code or '—' }}</td>
+            <td>{{ item.enumeration_date.strftime('%Y-%m-%d') if item.enumeration_date else '—' }}</td>
+            <td>{{ item.first_claim_month.strftime('%Y-%m') if item.first_claim_month else '—' }}</td>
+            <td class="text-end {% if item.days_to_first_claim is not none and item.days_to_first_claim < 90 %}text-danger fw-bold{% endif %}">
+                {{ item.days_to_first_claim if item.days_to_first_claim is not none else '—' }}
+            </td>
+            <td class="text-end">{{ item.active_months or 0 }}</td>
+            <td class="text-end">${{ "{:,.0f}".format(item.avg_monthly_spend or 0) }}</td>
+            <td class="text-end fw-bold">${{ "{:,.0f}".format(item.lifetime_paid or 0) }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+{% if pagination.pages > 1 %}
+<nav>
+    <ul class="pagination justify-content-center">
+        {% if pagination.has_prev %}
+        <li class="page-item"><a class="page-link" href="?page={{ pagination.prev_num }}&sort={{ sort }}&state={{ state }}">Previous</a></li>
+        {% endif %}
+        {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+            {% if page_num %}
+            <li class="page-item {% if page_num == pagination.page %}active{% endif %}">
+                <a class="page-link" href="?page={{ page_num }}&sort={{ sort }}&state={{ state }}">{{ page_num }}</a>
+            </li>
+            {% else %}
+            <li class="page-item disabled"><span class="page-link">...</span></li>
+            {% endif %}
+        {% endfor %}
+        {% if pagination.has_next %}
+        <li class="page-item"><a class="page-link" href="?page={{ pagination.next_num }}&sort={{ sort }}&state={{ state }}">Next</a></li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+{% endblock %}

@@ -47,8 +47,10 @@ CREATE TABLE addresses (
     fax                     TEXT,
     -- Derived/cleaned fields
     street_number           TEXT,
+    street_pre_direction    TEXT,               -- N, S, E, W, NE, NW, SE, SW
     street_name             TEXT,
     street_suffix           TEXT,               -- ST, AVE, BLVD, DR
+    street_post_direction   TEXT,               -- N, S, E, W, NE, NW, SE, SW
     unit_type               TEXT,               -- STE, APT, UNIT
     unit_number             TEXT,
     UNIQUE(npi, address_purpose)

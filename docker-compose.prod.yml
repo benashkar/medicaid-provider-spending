@@ -1,0 +1,142 @@
+# =============================================================================
+# docker-compose.prod.yml — Production Deployment
+# =============================================================================
+# EN: Production compose file for the Flask dashboard. This configuration
+#     expects an EXTERNAL PostgreSQL database (e.g., Render, AWS RDS,
+#     or a managed database service). The DATABASE_URL must be set in the
+#     host environment or in a .env file before running:
+#
+#       DATABASE_URL=postgresql://user:pass@host:5432/dbname \
+#         docker-compose -f docker-compose.prod.yml up -d
+#
+#     No database container is included here — the application connects
+#     to the external database specified in DATABASE_URL.
+#
+# RU: Продакшен-конфигурация для панели мониторинга Flask. Этот файл
+#     предполагает использование ВНЕШНЕЙ базы данных PostgreSQL (например,
+#     Render, AWS RDS или управляемый сервис баз данных). Переменная
+#     DATABASE_URL должна быть задана в окружении хоста или в файле .env
+#     перед запуском:
+#
+#       DATABASE_URL=postgresql://user:pass@host:5432/dbname \
+#         docker-compose -f docker-compose.prod.yml up -d
+#
+#     Контейнер базы данных не включён — приложение подключается к
+#     внешней базе, указанной в DATABASE_URL.
+#
+# PT: Arquivo de composicao para producao do painel Flask. Esta configuracao
+#     espera um banco de dados PostgreSQL EXTERNO (por exemplo, Render,
+#     AWS RDS ou um servico gerenciado de banco de dados). A variavel
+#     DATABASE_URL deve ser definida no ambiente do host ou em um arquivo
+#     .env antes de executar:
+#
+#       DATABASE_URL=postgresql://user:pass@host:5432/dbname \
+#         docker-compose -f docker-compose.prod.yml up -d
+#
+#     Nenhum conteiner de banco de dados e incluido aqui — a aplicacao
+#     se conecta ao banco externo especificado em DATABASE_URL.
+# =============================================================================
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # Web Service (Flask Dashboard — Production)
+  # EN: The production web service. It reads DATABASE_URL and SECRET_KEY
+  #     from the host environment. Resource limits are applied to prevent
+  #     runaway memory usage. The restart policy ensures the service
+  #     recovers automatically from crashes.
+  # RU: Веб-сервис для продакшена. Читает DATABASE_URL и SECRET_KEY из
+  #     окружения хоста. Установлены ограничения ресурсов для
+  #     предотвращения неконтролируемого потребления памяти. Политика
+  #     перезапуска обеспечивает автоматическое восстановление при сбоях.
+  # PT: O servico web de producao. Le DATABASE_URL e SECRET_KEY do
+  #     ambiente do host. Limites de recursos sao aplicados para evitar
+  #     consumo descontrolado de memoria. A politica de reinicializacao
+  #     garante recuperacao automatica em caso de falhas.
+  # ---------------------------------------------------------------------------
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    # EN: Map container port 10000 to host port 80 for standard HTTP access.
+    #     In production, a reverse proxy (Nginx, Traefik, Cloudflare) should
+    #     handle TLS termination in front of this service.
+    # RU: Проброс порта 10000 контейнера на порт 80 хоста для стандартного
+    #     HTTP-доступа. В продакшене обратный прокси (Nginx, Traefik,
+    #     Cloudflare) должен обрабатывать TLS перед этим сервисом.
+    # PT: Mapeia a porta 10000 do conteiner para a porta 80 do host para
+    #     acesso HTTP padrao. Em producao, um proxy reverso (Nginx, Traefik,
+    #     Cloudflare) deve lidar com a terminacao TLS na frente deste servico.
+    ports:
+      - "80:10000"
+
+    environment:
+      # EN: DATABASE_URL is read from the host environment. It must point
+      #     to your production PostgreSQL instance. Do NOT hardcode
+      #     credentials here — use environment variables or a .env file.
+      # RU: DATABASE_URL берётся из окружения хоста. Должен указывать на
+      #     продакшен-экземпляр PostgreSQL. НЕ указывайте учётные данные
+      #     напрямую — используйте переменные окружения или файл .env.
+      # PT: DATABASE_URL e lido do ambiente do host. Deve apontar para a
+      #     instancia PostgreSQL de producao. NAO codifique credenciais
+      #     aqui — use variaveis de ambiente ou um arquivo .env.
+      - DATABASE_URL=${DATABASE_URL:?DATABASE_URL must be set}
+
+      # EN: Flask environment set to production. Disables debug mode,
+      #     enables production optimizations.
+      # RU: Среда Flask установлена в production. Отключает режим отладки,
+      #     включает оптимизации для продакшена.
+      # PT: Ambiente Flask definido como production. Desabilita o modo de
+      #     depuracao e habilita otimizacoes de producao.
+      - FLASK_ENV=production
+
+      # EN: Secret key for Flask sessions. Must be a strong random value
+      #     in production. Generate one with: python -c "import secrets; print(secrets.token_hex(32))"
+      # RU: Секретный ключ для сессий Flask. В продакшене должен быть
+      #     надёжным случайным значением. Сгенерируйте командой:
+      #     python -c "import secrets; print(secrets.token_hex(32))"
+      # PT: Chave secreta para sessoes Flask. Deve ser um valor aleatorio
+      #     forte em producao. Gere com:
+      #     python -c "import secrets; print(secrets.token_hex(32))"
+      - SECRET_KEY=${SECRET_KEY:?SECRET_KEY must be set}
+
+    # EN: Resource limits to prevent the container from consuming excessive
+    #     memory or CPU. Adjust these values based on your server capacity
+    #     and expected traffic.
+    # RU: Ограничения ресурсов для предотвращения чрезмерного потребления
+    #     памяти или процессора контейнером. Настройте эти значения в
+    #     соответствии с мощностью сервера и ожидаемой нагрузкой.
+    # PT: Limites de recursos para evitar que o conteiner consuma memoria
+    #     ou CPU excessivos. Ajuste estes valores com base na capacidade
+    #     do servidor e no trafego esperado.
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+        reservations:
+          cpus: "0.25"
+          memory: 128M
+
+    # EN: Always restart the container in production, even after system
+    #     reboots. Only a manual `docker-compose down` will stop it.
+    # RU: Всегда перезапускать контейнер в продакшене, даже после
+    #     перезагрузки системы. Только ручная команда
+    #     `docker-compose down` его остановит.
+    # PT: Sempre reinicia o conteiner em producao, mesmo apos
+    #     reinicializacoes do sistema. Apenas um `docker-compose down`
+    #     manual o parara.
+    restart: always
+
+    # EN: Logging configuration. Limits log file size to prevent disk
+    #     exhaustion on long-running production deployments.
+    # RU: Настройка логирования. Ограничивает размер файлов логов для
+    #     предотвращения переполнения диска при длительной работе.
+    # PT: Configuracao de logging. Limita o tamanho dos arquivos de log
+    #     para evitar esgotamento de disco em implantacoes de longa duracao.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

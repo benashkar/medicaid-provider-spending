@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+{% block title %}Fraud Risk Score — Fraud Detection{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{{ url_for('analysis.index') }}">Analysis</a></li>
+        <li class="breadcrumb-item active">Fraud Risk Score</li>
+    </ol>
+</nav>
+
+<h2 class="mb-2">Composite Fraud Risk Score</h2>
+<p class="text-muted mb-3">
+    Organizations ranked by number of fraud indicators triggered (0-5 scale).
+    Combines: YoY spending spikes, statistical outlier codes, month-over-month spikes,
+    shared address clustering, and billing network complexity.
+</p>
+
+<form method="get" class="row g-2 mb-4">
+    <div class="col-md-2">
+        <label class="form-label fw-bold">Min Score</label>
+        <select name="min_score" class="form-select">
+            <option value="1" {% if min_score == 1 %}selected{% endif %}>1+ (any flag)</option>
+            <option value="2" {% if min_score == 2 %}selected{% endif %}>2+ flags</option>
+            <option value="3" {% if min_score == 3 %}selected{% endif %}>3+ flags</option>
+            <option value="4" {% if min_score == 4 %}selected{% endif %}>4+ flags</option>
+            <option value="5" {% if min_score == 5 %}selected{% endif %}>5 (all flags)</option>
+        </select>
+    </div>
+    <div class="col-md-2">
+        <label class="form-label fw-bold">State</label>
+        <select name="state" class="form-select">
+            <option value="">All States</option>
+            {% for s in states %}
+            <option value="{{ s }}" {% if state == s %}selected{% endif %}>{{ s }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="col-md-2 d-flex align-items-end">
+        <button type="submit" class="btn btn-primary">Filter</button>
+    </div>
+</form>
+
+<table class="table table-striped table-sm">
+    <thead class="table-dark">
+        <tr>
+            <th>#</th>
+            <th>Score</th>
+            <th>NPI</th>
+            <th>Organization</th>
+            <th>Authorized Official</th>
+            <th>State</th>
+            <th class="text-end">Lifetime Paid</th>
+            <th class="text-center">YoY Spike</th>
+            <th class="text-center">Outlier</th>
+            <th class="text-center">MoM Spike</th>
+            <th class="text-center">Shared Addr</th>
+            <th class="text-center">Network</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for item in items %}
+        <tr class="{% if item.risk_score >= 4 %}table-danger{% elif item.risk_score >= 3 %}table-warning{% elif item.risk_score >= 2 %}table-info{% endif %}">
+            <td>{{ (pagination.page - 1) * pagination.per_page + loop.index }}</td>
+            <td>
+                {% if item.risk_score >= 4 %}
+                <span class="badge bg-danger fs-6">{{ item.risk_score }}/5</span>
+                {% elif item.risk_score >= 3 %}
+                <span class="badge bg-warning text-dark fs-6">{{ item.risk_score }}/5</span>
+                {% elif item.risk_score >= 2 %}
+                <span class="badge bg-info text-dark fs-6">{{ item.risk_score }}/5</span>
+                {% else %}
+                <span class="badge bg-secondary fs-6">{{ item.risk_score }}/5</span>
+                {% endif %}
+            </td>
+            <td>
+                <a href="{{ url_for('providers.provider_detail', npi=item.billing_npi.strip()) }}">
+                    {{ item.billing_npi.strip() }}
+                </a>
+            </td>
+            <td>{{ item.organization_name or '—' }}</td>
+            <td>{{ item.authorized_official_first or '' }} {{ item.authorized_official_last or '' }}</td>
+            <td>{{ item.state_code or '—' }}</td>
+            <td class="text-end">${{ "{:,.0f}".format(item.lifetime_paid or 0) }}</td>
+            <!-- YoY Spike flag -->
+            <td class="text-center">
+                {% if item.flag_yoy_spike %}
+                <span class="badge bg-danger" title="Max YoY: ${{ '{:,.0f}'.format(item.max_yoy_dollar or 0) }} (+{{ '{:,.0f}'.format(item.max_yoy_pct or 0) }}%)">
+                    +${{ "{:,.0f}".format(item.max_yoy_dollar or 0) }}
+                </span>
+                {% else %}
+                <span class="text-muted">—</span>
+                {% endif %}
+            </td>
+            <!-- Outlier flag -->
+            <td class="text-center">
+                {% if item.flag_outlier %}
+                <span class="badge bg-danger" title="{{ item.outlier_code_count }} codes, max z={{ '{:.1f}'.format(item.max_z_score or 0) }}">
+                    {{ item.outlier_code_count }} codes
+                </span>
+                {% else %}
+                <span class="text-muted">—</span>
+                {% endif %}
+            </td>
+            <!-- MoM Spike flag -->
+            <td class="text-center">
+                {% if item.flag_mom_spike %}
+                <span class="badge bg-warning text-dark" title="{{ item.spike_count }} spikes, max +{{ '{:,.0f}'.format(item.max_spike_pct or 0) }}%">
+                    {{ item.spike_count }}x
+                </span>
+                {% else %}
+                <span class="text-muted">—</span>
+                {% endif %}
+            </td>
+            <!-- Shared Address flag -->
+            <td class="text-center">
+                {% if item.flag_shared_address %}
+                <span class="badge bg-info text-dark" title="{{ item.building_provider_count }} providers at same building">
+                    {{ item.building_provider_count }} provs
+                </span>
+                {% else %}
+                <span class="text-muted">—</span>
+                {% endif %}
+            </td>
+            <!-- Network Complexity flag -->
+            <td class="text-center">
+                {% if item.flag_network_complexity %}
+                <span class="badge bg-secondary" title="{{ item.servicing_partner_count }} servicing partners">
+                    {{ item.servicing_partner_count }} partners
+                </span>
+                {% else %}
+                <span class="text-muted">—</span>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+{% if pagination.pages > 1 %}
+<nav>
+    <ul class="pagination justify-content-center">
+        {% if pagination.has_prev %}
+        <li class="page-item"><a class="page-link" href="?page={{ pagination.prev_num }}&min_score={{ min_score }}&state={{ state }}">Previous</a></li>
+        {% endif %}
+        {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+            {% if page_num %}
+            <li class="page-item {% if page_num == pagination.page %}active{% endif %}">
+                <a class="page-link" href="?page={{ page_num }}&min_score={{ min_score }}&state={{ state }}">{{ page_num }}</a>
+            </li>
+            {% else %}
+            <li class="page-item disabled"><span class="page-link">...</span></li>
+            {% endif %}
+        {% endfor %}
+        {% if pagination.has_next %}
+        <li class="page-item"><a class="page-link" href="?page={{ pagination.next_num }}&min_score={{ min_score }}&state={{ state }}">Next</a></li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+
+<div class="card mt-4">
+    <div class="card-body">
+        <h5 class="card-title">Risk Score Legend</h5>
+        <div class="d-flex gap-3 flex-wrap">
+            <span><span class="badge bg-danger">4-5</span> Critical — multiple strong fraud indicators</span>
+            <span><span class="badge bg-warning text-dark">3</span> High — several flags warrant investigation</span>
+            <span><span class="badge bg-info text-dark">2</span> Moderate — some anomalies detected</span>
+            <span><span class="badge bg-secondary">1</span> Low — single flag, monitor</span>
+        </div>
+        <hr>
+        <h6>Flag Definitions:</h6>
+        <ul class="mb-0">
+            <li><strong>YoY Spike</strong> — Year-over-year spending increase >$500K or >200%</li>
+            <li><strong>Outlier</strong> — Billing >2 standard deviations above peers on any HCPCS code</li>
+            <li><strong>MoM Spike</strong> — Month-over-month spending more than doubled (>100% increase)</li>
+            <li><strong>Shared Addr</strong> — 3+ providers billing from the same building address</li>
+            <li><strong>Network</strong> — Bills through 5+ different servicing providers</li>
+        </ul>
+    </div>
+</div>
+{% endblock %}
