@@ -31,6 +31,7 @@ from datetime import date, datetime
 from pathlib import Path
 
 import psycopg2
+from psycopg2.extras import execute_values
 
 from etl.normalize_addresses import normalize_address
 
@@ -340,29 +341,33 @@ def load_nppes(database_url: str | None = None, filter_to_spending: bool = True)
 #   cur:          [EN] psycopg2 cursor | [RU] Курсор psycopg2 | [PT] Cursor psycopg2
 #   batch (list): [EN] List of provider tuples | [RU] Список кортежей поставщиков | [PT] Lista de tuplas de provedores
 def _flush_providers(cur, batch):
-    """Insert provider batch."""
+    """Insert provider batch using execute_values for speed."""
+    if not batch:
+        return
+    # Deduplicate by NPI (index 0) — keep last occurrence
+    seen = {}
     for p in batch:
-        try:
-            cur.execute(
-                """INSERT INTO providers
-                   (npi, entity_type, organization_name, last_name, first_name,
-                    middle_name, credential, is_sole_proprietor, is_org_subpart,
-                    parent_org_name, parent_org_tin, authorized_official_last,
-                    authorized_official_first, authorized_official_phone,
-                    enumeration_date, last_update_date, deactivation_date,
-                    reactivation_date)
-                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                   ON CONFLICT (npi) DO UPDATE SET
-                    entity_type = EXCLUDED.entity_type,
-                    organization_name = EXCLUDED.organization_name,
-                    last_name = EXCLUDED.last_name,
-                    first_name = EXCLUDED.first_name,
-                    last_update_date = EXCLUDED.last_update_date""",
-                p,
-            )
-        except Exception as e:
-            log.debug("Provider insert error for NPI %s: %s", p[0], e)
-            cur.connection.rollback()
+        seen[p[0]] = p
+    deduped = list(seen.values())
+    execute_values(
+        cur,
+        """INSERT INTO providers
+           (npi, entity_type, organization_name, last_name, first_name,
+            middle_name, credential, is_sole_proprietor, is_org_subpart,
+            parent_org_name, parent_org_tin, authorized_official_last,
+            authorized_official_first, authorized_official_phone,
+            enumeration_date, last_update_date, deactivation_date,
+            reactivation_date)
+           VALUES %s
+           ON CONFLICT (npi) DO UPDATE SET
+            entity_type = EXCLUDED.entity_type,
+            organization_name = EXCLUDED.organization_name,
+            last_name = EXCLUDED.last_name,
+            first_name = EXCLUDED.first_name,
+            last_update_date = EXCLUDED.last_update_date""",
+        deduped,
+        page_size=1000,
+    )
 
 
 # [EN] Insert a batch of address records into the addresses table.
@@ -381,42 +386,50 @@ def _flush_providers(cur, batch):
 #   cur:          [EN] psycopg2 cursor | [RU] Курсор psycopg2 | [PT] Cursor psycopg2
 #   batch (list): [EN] List of (npi, purpose, addr_dict) tuples | [RU] Список кортежей (npi, purpose, addr_dict) | [PT] Lista de tuplas (npi, purpose, addr_dict)
 def _flush_addresses(cur, batch):
-    """Insert address batch."""
+    """Insert address batch using execute_values for speed."""
+    if not batch:
+        return
+    # Deduplicate by (npi, purpose) — keep last occurrence
+    seen = {}
     for npi, purpose, addr in batch:
-        try:
-            cur.execute(
-                """INSERT INTO addresses
-                   (npi, address_purpose, street_line_1, street_line_2,
-                    city, state_code, zip5, zip4, country_code, phone, fax,
-                    street_number, street_pre_direction, street_name,
-                    street_suffix, street_post_direction, unit_type, unit_number)
-                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                   ON CONFLICT (npi, address_purpose) DO UPDATE SET
-                    street_line_1 = EXCLUDED.street_line_1,
-                    city = EXCLUDED.city,
-                    state_code = EXCLUDED.state_code,
-                    zip5 = EXCLUDED.zip5,
-                    street_number = EXCLUDED.street_number,
-                    street_pre_direction = EXCLUDED.street_pre_direction,
-                    street_name = EXCLUDED.street_name,
-                    street_suffix = EXCLUDED.street_suffix,
-                    street_post_direction = EXCLUDED.street_post_direction,
-                    unit_type = EXCLUDED.unit_type,
-                    unit_number = EXCLUDED.unit_number""",
-                (
-                    npi, purpose,
-                    addr["street_line_1"], addr["street_line_2"],
-                    addr["city"], addr["state_code"], addr["zip5"], addr["zip4"],
-                    addr["country_code"], addr["phone"], addr["fax"],
-                    addr["street_number"], addr["street_pre_direction"],
-                    addr["street_name"], addr["street_suffix"],
-                    addr["street_post_direction"],
-                    addr["unit_type"], addr["unit_number"],
-                ),
-            )
-        except Exception as e:
-            log.debug("Address insert error for NPI %s: %s", npi, e)
-            cur.connection.rollback()
+        seen[(npi, purpose)] = (npi, purpose, addr)
+    deduped = list(seen.values())
+    values = [
+        (
+            npi, purpose,
+            addr["street_line_1"], addr["street_line_2"],
+            addr["city"], addr["state_code"], addr["zip5"], addr["zip4"],
+            addr["country_code"], addr["phone"], addr["fax"],
+            addr["street_number"], addr["street_pre_direction"],
+            addr["street_name"], addr["street_suffix"],
+            addr["street_post_direction"],
+            addr["unit_type"], addr["unit_number"],
+        )
+        for npi, purpose, addr in deduped
+    ]
+    execute_values(
+        cur,
+        """INSERT INTO addresses
+           (npi, address_purpose, street_line_1, street_line_2,
+            city, state_code, zip5, zip4, country_code, phone, fax,
+            street_number, street_pre_direction, street_name,
+            street_suffix, street_post_direction, unit_type, unit_number)
+           VALUES %s
+           ON CONFLICT (npi, address_purpose) DO UPDATE SET
+            street_line_1 = EXCLUDED.street_line_1,
+            city = EXCLUDED.city,
+            state_code = EXCLUDED.state_code,
+            zip5 = EXCLUDED.zip5,
+            street_number = EXCLUDED.street_number,
+            street_pre_direction = EXCLUDED.street_pre_direction,
+            street_name = EXCLUDED.street_name,
+            street_suffix = EXCLUDED.street_suffix,
+            street_post_direction = EXCLUDED.street_post_direction,
+            unit_type = EXCLUDED.unit_type,
+            unit_number = EXCLUDED.unit_number""",
+        values,
+        page_size=1000,
+    )
 
 
 # [EN] Insert a batch of taxonomy records into the provider_taxonomies table.
@@ -434,20 +447,24 @@ def _flush_addresses(cur, batch):
 #                 [RU] Список кортежей (npi, tax_code, license_num, license_state, is_primary)
 #                 [PT] Lista de tuplas (npi, tax_code, license_num, license_state, is_primary)
 def _flush_taxonomies(cur, batch):
-    """Insert taxonomy batch."""
+    """Insert taxonomy batch using execute_values for speed."""
+    if not batch:
+        return
+    # Deduplicate by (npi, taxonomy_code) — keep last occurrence
+    seen = {}
     for t in batch:
-        try:
-            cur.execute(
-                """INSERT INTO provider_taxonomies
-                   (npi, taxonomy_code, license_number, license_state, is_primary)
-                   VALUES (%s,%s,%s,%s,%s)
-                   ON CONFLICT (npi, taxonomy_code) DO UPDATE SET
-                    is_primary = EXCLUDED.is_primary""",
-                t,
-            )
-        except Exception as e:
-            log.debug("Taxonomy insert error: %s", e)
-            cur.connection.rollback()
+        seen[(t[0], t[1])] = t
+    deduped = list(seen.values())
+    execute_values(
+        cur,
+        """INSERT INTO provider_taxonomies
+           (npi, taxonomy_code, license_number, license_state, is_primary)
+           VALUES %s
+           ON CONFLICT (npi, taxonomy_code) DO UPDATE SET
+            is_primary = EXCLUDED.is_primary""",
+        deduped,
+        page_size=1000,
+    )
 
 
 # [EN] Entry point: runs the NPPES data load process
