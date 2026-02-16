@@ -137,6 +137,7 @@
                     <thead>
                         <tr>
                             <th>HCPCS Code</th>
+                            <th>Description</th>
                             <th class="text-end">Total Paid</th>
                             <th class="text-end">Claims</th>
                         </tr>
@@ -144,7 +145,8 @@
                     <tbody>
                         {% for h in top_hcpcs %}
                         <tr>
-                            <td>{{ h.hcpcs_code }}</td>
+                            <td><strong>{{ h.hcpcs_code }}</strong></td>
+                            <td>{{ h.short_description or '—' }}</td>
                             <td class="text-end">${{ "{:,.0f}".format(h.total_paid or 0) }}</td>
                             <td class="text-end">{{ "{:,}".format(h.total_claims or 0) }}</td>
                         </tr>

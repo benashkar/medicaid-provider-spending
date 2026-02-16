@@ -19,7 +19,7 @@ from flask import Blueprint, render_template, request
 
 from app.models import (
     db, Provider, Address, ProviderTaxonomy, Spending,
-    MvProviderSpendingSummary,
+    MvProviderSpendingSummary, HcpcsCode,
 )
 
 # [EN] Create the "providers" blueprint — handles provider-related HTML pages
@@ -156,12 +156,15 @@ def provider_detail(npi):
     #      GROUP BY hcpcs_code, ordenados por sum(total_paid) decrescente.
     top_hcpcs = db.session.query(
         Spending.hcpcs_code,
+        HcpcsCode.short_description,
         db.func.sum(Spending.total_paid).label("total_paid"),
         db.func.sum(Spending.total_claims).label("total_claims"),
+    ).outerjoin(
+        HcpcsCode, Spending.hcpcs_code == HcpcsCode.hcpcs_code
     ).filter(
         Spending.billing_npi == npi
     ).group_by(
-        Spending.hcpcs_code
+        Spending.hcpcs_code, HcpcsCode.short_description
     ).order_by(
         db.func.sum(Spending.total_paid).desc()
     ).limit(20).all()

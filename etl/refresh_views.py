@@ -59,6 +59,15 @@ MATERIALIZED_VIEWS = [
     "mv_outlier_providers",
     "mv_geographic_concentration",
     "mv_billing_servicing_network",
+    # [EN] Fraud detection views (added in fraud detection suite)
+    # [RU] Представления обнаружения мошенничества
+    # [PT] Views de deteccao de fraude
+    "mv_org_yoy_growth",
+    "mv_address_clustering",
+    "mv_rapid_ramp",
+    "mv_fraud_risk_score",
+    "mv_avg_claim_by_provider",
+    "mv_official_network",
 ]
 
 
