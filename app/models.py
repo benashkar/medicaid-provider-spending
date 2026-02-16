@@ -311,12 +311,13 @@ class MvTopOrganizations(db.Model):
     last_claim = db.Column(db.Date)
 
 
-# [EN] Spending growth — month-over-month payment changes per provider.
-#      Flags providers with significant spending increases (anomaly detection).
-# [RU] Рост расходов — помесячные изменения выплат по каждому поставщику.
-#      Выделяет поставщиков со значительным ростом расходов (обнаружение аномалий).
-# [PT] Crescimento de gastos — mudanças mensais de pagamento por provedor.
-#      Identifica provedores com aumentos significativos de gastos (detecção de anomalias).
+# [EN] Spending growth — year-over-year payment changes per provider (individuals & orgs).
+#      Shows annual spending, previous year spending, dollar change, and percentage change.
+#      Filterable by year range and minimum % growth at the application level.
+# [RU] Рост расходов — годовые изменения выплат по каждому поставщику (физ. лица и организации).
+#      Показывает годовые расходы, расходы предыдущего года, изменение в долларах и процентах.
+# [PT] Crescimento de gastos — mudanças anuais de pagamento por provedor (individuais e organizações).
+#      Mostra gastos anuais, gastos do ano anterior, variação em dólares e percentual.
 class MvSpendingGrowth(db.Model):
     __tablename__ = "mv_spending_growth"
     __table_args__ = {"info": {"is_view": True}}
@@ -326,16 +327,19 @@ class MvSpendingGrowth(db.Model):
     last_name = db.Column(db.Text)
     first_name = db.Column(db.Text)
     entity_type = db.Column(db.SmallInteger)
-    claim_month = db.Column(db.Date, primary_key=True)
-    monthly_paid = db.Column(db.Numeric)
-    # [EN] Previous month's payment — used to calculate the percentage change
-    # [RU] Выплата за предыдущий месяц — используется для расчёта процентного изменения
-    # [PT] Pagamento do mês anterior — usado para calcular a variação percentual
-    prev_paid = db.Column(db.Numeric)
-    # [EN] Percentage change from the previous month (can be very large for spike detection)
-    # [RU] Процентное изменение по сравнению с предыдущим месяцем (может быть очень большим для обнаружения всплесков)
-    # [PT] Variação percentual em relação ao mês anterior (pode ser muito grande para detecção de picos)
+    authorized_official_first = db.Column(db.Text)
+    authorized_official_last = db.Column(db.Text)
+    state_code = db.Column(db.String(2))
+    city = db.Column(db.Text)
+    claim_year = db.Column(db.Integer, primary_key=True)
+    prev_year = db.Column(db.Integer)
+    annual_paid = db.Column(db.Numeric)
+    prev_year_paid = db.Column(db.Numeric)
+    dollar_change = db.Column(db.Numeric)
     pct_change = db.Column(db.Numeric)
+    annual_claims = db.Column(db.Integer)
+    prev_year_claims = db.Column(db.Integer)
+    annual_benes = db.Column(db.Integer)
 
     @property
     def display_name(self):

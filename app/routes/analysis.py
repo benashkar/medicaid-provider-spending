@@ -68,19 +68,57 @@ def top_organizations():
 #      Esses picos podem indicar anomalias de faturamento ou mudanças na atividade do provedor.
 @bp.route("/spending-growth")
 def spending_growth():
-    """Month-over-month spending growth anomalies (>100% increase)."""
+    """Year-over-year spending growth with filterable year range and % threshold."""
     page = request.args.get("page", 1, type=int)
-    # [EN] Query all spending growth records, sorted by largest percentage change first
-    # [RU] Запросить все записи роста расходов, отсортированные по наибольшему процентному изменению
-    # [PT] Consultar todos os registros de crescimento de gastos, ordenados pelo maior percentual de mudança
-    query = MvSpendingGrowth.query.order_by(
-        MvSpendingGrowth.pct_change.desc()
-    )
+    sort = request.args.get("sort", "dollar")  # "dollar" or "pct"
+    min_pct = request.args.get("min_pct", "", type=str).strip()
+    year_from = request.args.get("year_from", "", type=str).strip()
+    year_to = request.args.get("year_to", "", type=str).strip()
+    state = request.args.get("state", "").strip()
+    entity = request.args.get("entity", "", type=str).strip()
+
+    query = MvSpendingGrowth.query
+
+    if min_pct:
+        query = query.filter(MvSpendingGrowth.pct_change >= float(min_pct))
+    if year_from:
+        query = query.filter(MvSpendingGrowth.claim_year >= int(year_from))
+    if year_to:
+        query = query.filter(MvSpendingGrowth.claim_year <= int(year_to))
+    if state:
+        query = query.filter(MvSpendingGrowth.state_code == state.upper())
+    if entity in ("1", "2"):
+        query = query.filter(MvSpendingGrowth.entity_type == int(entity))
+
+    if sort == "pct":
+        query = query.order_by(MvSpendingGrowth.pct_change.desc())
+    else:
+        query = query.order_by(MvSpendingGrowth.dollar_change.desc())
+
     pagination = query.paginate(page=page, per_page=50, error_out=False)
+
+    years = db.session.query(
+        MvSpendingGrowth.claim_year
+    ).distinct().order_by(MvSpendingGrowth.claim_year.desc()).all()
+    years = [y[0] for y in years]
+
+    states = db.session.query(
+        MvSpendingGrowth.state_code
+    ).distinct().order_by(MvSpendingGrowth.state_code).all()
+    states = [s[0] for s in states if s[0]]
+
     return render_template(
         "analysis/spending_growth.html",
         items=pagination.items,
         pagination=pagination,
+        sort=sort,
+        min_pct=min_pct,
+        year_from=year_from,
+        year_to=year_to,
+        state=state,
+        entity=entity,
+        years=years,
+        states=states,
     )
 
 

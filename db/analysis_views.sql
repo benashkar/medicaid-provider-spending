@@ -52,24 +52,36 @@ CREATE INDEX IF NOT EXISTS idx_mv_shared_addr_count
     ON mv_shared_addresses(provider_count DESC);
 
 
--- 3. Month-over-month spending growth by provider (flag >100% increases)
+-- 3. Year-over-year spending growth by provider
+--    [EN] Compares annual spending for each provider (individuals & orgs) across consecutive years.
+--         No hardcoded % threshold — filtering is done at the application level.
+--         Includes authorized official and location data.
+--    [RU] Сравнивает годовые расходы каждого поставщика (физ. лица и организации) за последовательные годы.
+--         Без жёстко заданного порога % — фильтрация на уровне приложения.
+--    [PT] Compara gastos anuais de cada provedor (individuais e organizações) entre anos consecutivos.
+--         Sem limite % fixo — filtragem no nível da aplicação.
 CREATE MATERIALIZED VIEW IF NOT EXISTS mv_spending_growth AS
-WITH monthly AS (
+WITH yearly AS (
     SELECT
         billing_npi,
-        claim_month,
-        SUM(total_paid) AS monthly_paid
+        EXTRACT(YEAR FROM claim_month)::INT AS claim_year,
+        SUM(total_paid) AS annual_paid,
+        SUM(total_claims) AS annual_claims,
+        SUM(total_unique_benes) AS annual_benes
     FROM spending
-    GROUP BY billing_npi, claim_month
+    GROUP BY billing_npi, EXTRACT(YEAR FROM claim_month)
 ),
 with_lag AS (
     SELECT
         billing_npi,
-        claim_month,
-        monthly_paid,
-        LAG(monthly_paid) OVER (PARTITION BY billing_npi ORDER BY claim_month) AS prev_paid,
-        LAG(claim_month) OVER (PARTITION BY billing_npi ORDER BY claim_month) AS prev_month
-    FROM monthly
+        claim_year,
+        annual_paid,
+        annual_claims,
+        annual_benes,
+        LAG(annual_paid) OVER (PARTITION BY billing_npi ORDER BY claim_year) AS prev_year_paid,
+        LAG(annual_claims) OVER (PARTITION BY billing_npi ORDER BY claim_year) AS prev_year_claims,
+        LAG(claim_year) OVER (PARTITION BY billing_npi ORDER BY claim_year) AS prev_year
+    FROM yearly
 )
 SELECT
     w.billing_npi,
@@ -77,23 +89,35 @@ SELECT
     p.last_name,
     p.first_name,
     p.entity_type,
-    w.claim_month,
-    w.monthly_paid,
-    w.prev_paid,
+    p.authorized_official_first,
+    p.authorized_official_last,
+    a.state_code,
+    a.city,
+    w.claim_year,
+    w.prev_year,
+    w.annual_paid,
+    w.prev_year_paid,
+    (w.annual_paid - w.prev_year_paid) AS dollar_change,
     CASE
-        WHEN w.prev_paid > 0
-        THEN ROUND(((w.monthly_paid - w.prev_paid) / w.prev_paid * 100)::NUMERIC, 1)
+        WHEN w.prev_year_paid > 0
+        THEN ROUND(((w.annual_paid - w.prev_year_paid) / w.prev_year_paid * 100)::NUMERIC, 1)
         ELSE NULL
-    END AS pct_change
+    END AS pct_change,
+    w.annual_claims,
+    w.prev_year_claims,
+    w.annual_benes
 FROM with_lag w
 JOIN providers p ON p.npi = w.billing_npi
-WHERE w.prev_paid > 0
-  AND w.monthly_paid > 10000
-  AND ((w.monthly_paid - w.prev_paid) / w.prev_paid * 100) > 100
-ORDER BY w.monthly_paid DESC;
+LEFT JOIN addresses a ON a.npi = w.billing_npi AND a.address_purpose = 'PRACTICE'
+WHERE w.prev_year_paid IS NOT NULL
+  AND w.prev_year_paid > 0
+  AND w.claim_year = w.prev_year + 1
+ORDER BY (w.annual_paid - w.prev_year_paid) DESC;
 
 CREATE INDEX IF NOT EXISTS idx_mv_growth_npi ON mv_spending_growth(billing_npi);
-CREATE INDEX IF NOT EXISTS idx_mv_growth_month ON mv_spending_growth(claim_month);
+CREATE INDEX IF NOT EXISTS idx_mv_growth_year ON mv_spending_growth(claim_year);
+CREATE INDEX IF NOT EXISTS idx_mv_growth_pct ON mv_spending_growth(pct_change DESC);
+CREATE INDEX IF NOT EXISTS idx_mv_growth_state ON mv_spending_growth(state_code);
 
 
 -- 4. Providers >2 standard deviations above peer mean per HCPCS code

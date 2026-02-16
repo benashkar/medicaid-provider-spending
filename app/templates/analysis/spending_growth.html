@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Spending Growth Anomalies — Analysis{% endblock %}
+{% block title %}Year-over-Year Spending Growth — Analysis{% endblock %}
 
 {% block content %}
 <nav aria-label="breadcrumb">
@@ -9,36 +9,104 @@
     </ol>
 </nav>
 
-<h2 class="mb-4">Month-over-Month Spending Growth (&gt;100% Increase)</h2>
+<h2 class="mb-4">Year-over-Year Spending Growth</h2>
 <p class="text-muted">
-    Providers whose monthly spending more than doubled compared to the prior month
-    (minimum $10,000 in the spike month).
+    Compares annual spending for each provider across consecutive years.
+    Use filters below to focus on specific year ranges, minimum growth percentages, states, or entity types.
 </p>
+
+<form method="GET" class="row g-2 mb-4 align-items-end">
+    <div class="col-auto">
+        <label class="form-label small">Sort by</label>
+        <select name="sort" class="form-select form-select-sm">
+            <option value="dollar" {% if sort == 'dollar' %}selected{% endif %}>$ Change</option>
+            <option value="pct" {% if sort == 'pct' %}selected{% endif %}>% Change</option>
+        </select>
+    </div>
+    <div class="col-auto">
+        <label class="form-label small">Min % Growth</label>
+        <input type="number" name="min_pct" class="form-control form-control-sm" placeholder="e.g. 50"
+               value="{{ min_pct }}" style="width: 100px;">
+    </div>
+    <div class="col-auto">
+        <label class="form-label small">From Year</label>
+        <select name="year_from" class="form-select form-select-sm">
+            <option value="">All</option>
+            {% for y in years %}
+            <option value="{{ y }}" {% if year_from == y|string %}selected{% endif %}>{{ y }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="col-auto">
+        <label class="form-label small">To Year</label>
+        <select name="year_to" class="form-select form-select-sm">
+            <option value="">All</option>
+            {% for y in years %}
+            <option value="{{ y }}" {% if year_to == y|string %}selected{% endif %}>{{ y }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="col-auto">
+        <label class="form-label small">State</label>
+        <select name="state" class="form-select form-select-sm">
+            <option value="">All States</option>
+            {% for s in states %}
+            <option value="{{ s }}" {% if state == s %}selected{% endif %}>{{ s }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="col-auto">
+        <label class="form-label small">Entity Type</label>
+        <select name="entity" class="form-select form-select-sm">
+            <option value="">All</option>
+            <option value="2" {% if entity == '2' %}selected{% endif %}>Organization</option>
+            <option value="1" {% if entity == '1' %}selected{% endif %}>Individual</option>
+        </select>
+    </div>
+    <div class="col-auto">
+        <button type="submit" class="btn btn-primary btn-sm">Filter</button>
+        <a href="{{ url_for('analysis.spending_growth') }}" class="btn btn-outline-secondary btn-sm">Reset</a>
+    </div>
+</form>
 
 <table class="table table-striped table-sm">
     <thead class="table-dark">
         <tr>
             <th>NPI</th>
             <th>Name</th>
-            <th>Month</th>
-            <th class="text-end">Current Month</th>
-            <th class="text-end">Previous Month</th>
+            <th>Official</th>
+            <th>Location</th>
+            <th>Year</th>
+            <th class="text-end">Current Year</th>
+            <th class="text-end">Previous Year</th>
+            <th class="text-end">$ Change</th>
             <th class="text-end">% Change</th>
         </tr>
     </thead>
     <tbody>
         {% for item in items %}
-        <tr>
+        <tr class="{% if item.pct_change and item.pct_change > 200 %}table-danger{% elif item.pct_change and item.pct_change > 100 %}table-warning{% endif %}">
             <td>
                 <a href="{{ url_for('providers.provider_detail', npi=item.billing_npi.strip()) }}">
                     {{ item.billing_npi.strip() }}
                 </a>
             </td>
             <td>{{ item.display_name }}</td>
-            <td>{{ item.claim_month.strftime('%Y-%m') }}</td>
-            <td class="text-end">${{ "{:,.0f}".format(item.monthly_paid or 0) }}</td>
-            <td class="text-end">${{ "{:,.0f}".format(item.prev_paid or 0) }}</td>
-            <td class="text-end text-danger fw-bold">+{{ "{:,.1f}".format(item.pct_change or 0) }}%</td>
+            <td class="small text-muted">
+                {% if item.authorized_official_last %}
+                    {{ item.authorized_official_first or '' }} {{ item.authorized_official_last }}
+                {% endif %}
+            </td>
+            <td class="small">{{ item.city or '' }}{% if item.city and item.state_code %}, {% endif %}{{ item.state_code or '' }}</td>
+            <td>{{ item.claim_year }} vs {{ item.prev_year }}</td>
+            <td class="text-end">${{ "{:,.0f}".format(item.annual_paid or 0) }}</td>
+            <td class="text-end">${{ "{:,.0f}".format(item.prev_year_paid or 0) }}</td>
+            <td class="text-end {% if item.dollar_change and item.dollar_change > 0 %}text-danger{% elif item.dollar_change and item.dollar_change < 0 %}text-success{% endif %}">
+                ${{ "{:+,.0f}".format(item.dollar_change or 0) }}
+            </td>
+            <td class="text-end fw-bold {% if item.pct_change and item.pct_change > 100 %}text-danger{% elif item.pct_change and item.pct_change > 50 %}text-warning{% endif %}">
+                {{ "{:+,.1f}".format(item.pct_change or 0) }}%
+            </td>
         </tr>
         {% endfor %}
     </tbody>
@@ -48,19 +116,23 @@
 <nav>
     <ul class="pagination justify-content-center">
         {% if pagination.has_prev %}
-        <li class="page-item"><a class="page-link" href="?page={{ pagination.prev_num }}">Previous</a></li>
+        <li class="page-item">
+            <a class="page-link" href="?page={{ pagination.prev_num }}&sort={{ sort }}&min_pct={{ min_pct }}&year_from={{ year_from }}&year_to={{ year_to }}&state={{ state }}&entity={{ entity }}">Previous</a>
+        </li>
         {% endif %}
         {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
             {% if page_num %}
             <li class="page-item {% if page_num == pagination.page %}active{% endif %}">
-                <a class="page-link" href="?page={{ page_num }}">{{ page_num }}</a>
+                <a class="page-link" href="?page={{ page_num }}&sort={{ sort }}&min_pct={{ min_pct }}&year_from={{ year_from }}&year_to={{ year_to }}&state={{ state }}&entity={{ entity }}">{{ page_num }}</a>
             </li>
             {% else %}
             <li class="page-item disabled"><span class="page-link">...</span></li>
             {% endif %}
         {% endfor %}
         {% if pagination.has_next %}
-        <li class="page-item"><a class="page-link" href="?page={{ pagination.next_num }}">Next</a></li>
+        <li class="page-item">
+            <a class="page-link" href="?page={{ pagination.next_num }}&sort={{ sort }}&min_pct={{ min_pct }}&year_from={{ year_from }}&year_to={{ year_to }}&state={{ state }}&entity={{ entity }}">Next</a>
+        </li>
         {% endif %}
     </ul>
 </nav>
