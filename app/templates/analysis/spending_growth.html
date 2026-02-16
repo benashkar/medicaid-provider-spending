@@ -64,12 +64,40 @@
         </select>
     </div>
     <div class="col-auto">
+        <label class="form-label small">Entity Designation</label>
+        <select name="org_type" class="form-select form-select-sm">
+            <option value="">All Types</option>
+            <optgroup label="Fraud Flags">
+                <option value="individual_name" {% if org_type == 'individual_name' %}selected{% endif %}>Individual Name as Org</option>
+            </optgroup>
+            <optgroup label="Aggregate Filters">
+                <option value="suspicious" {% if org_type == 'suspicious' %}selected{% endif %}>All Suspicious Entity Types</option>
+                <option value="legitimate" {% if org_type == 'legitimate' %}selected{% endif %}>All Legitimate Entity Types</option>
+            </optgroup>
+            <optgroup label="Suspicious (Shell Co / Provider Mill)">
+                {% for key, info in suspicious_filters.items() %}
+                <option value="{{ key }}" {% if org_type == key %}selected{% endif %}>{{ info.label }}</option>
+                {% endfor %}
+            </optgroup>
+            <optgroup label="Legitimate (Hospitals / Health Systems)">
+                {% for key, info in legitimate_filters.items() %}
+                <option value="{{ key }}" {% if org_type == key %}selected{% endif %}>{{ info.label }}</option>
+                {% endfor %}
+            </optgroup>
+        </select>
+    </div>
+    <div class="col-auto">
+        <label class="form-label small">Name Search</label>
+        <input type="text" name="name_search" class="form-control form-control-sm" placeholder="Search name..."
+               value="{{ name_search }}" style="width: 150px;">
+    </div>
+    <div class="col-auto">
         <button type="submit" class="btn btn-primary btn-sm">Filter</button>
         <a href="{{ url_for('analysis.spending_growth') }}" class="btn btn-outline-secondary btn-sm">Reset</a>
     </div>
 </form>
 
-<table class="table table-striped table-sm">
+<table class="table table-striped table-sm" id="growth-table">
     <thead class="table-dark">
         <tr>
             <th>NPI</th>
@@ -99,12 +127,12 @@
             </td>
             <td class="small">{{ item.city or '' }}{% if item.city and item.state_code %}, {% endif %}{{ item.state_code or '' }}</td>
             <td>{{ item.claim_year }} vs {{ item.prev_year }}</td>
-            <td class="text-end">${{ "{:,.0f}".format(item.annual_paid or 0) }}</td>
-            <td class="text-end">${{ "{:,.0f}".format(item.prev_year_paid or 0) }}</td>
-            <td class="text-end {% if item.dollar_change and item.dollar_change > 0 %}text-danger{% elif item.dollar_change and item.dollar_change < 0 %}text-success{% endif %}">
+            <td class="text-end" data-order="{{ item.annual_paid or 0 }}">${{ "{:,.0f}".format(item.annual_paid or 0) }}</td>
+            <td class="text-end" data-order="{{ item.prev_year_paid or 0 }}">${{ "{:,.0f}".format(item.prev_year_paid or 0) }}</td>
+            <td class="text-end {% if item.dollar_change and item.dollar_change > 0 %}text-danger{% elif item.dollar_change and item.dollar_change < 0 %}text-success{% endif %}" data-order="{{ item.dollar_change or 0 }}">
                 ${{ "{:+,.0f}".format(item.dollar_change or 0) }}
             </td>
-            <td class="text-end fw-bold {% if item.pct_change and item.pct_change > 100 %}text-danger{% elif item.pct_change and item.pct_change > 50 %}text-warning{% endif %}">
+            <td class="text-end fw-bold {% if item.pct_change and item.pct_change > 100 %}text-danger{% elif item.pct_change and item.pct_change > 50 %}text-warning{% endif %}" data-order="{{ item.pct_change or 0 }}">
                 {{ "{:+,.1f}".format(item.pct_change or 0) }}%
             </td>
         </tr>
@@ -117,13 +145,13 @@
     <ul class="pagination justify-content-center">
         {% if pagination.has_prev %}
         <li class="page-item">
-            <a class="page-link" href="?page={{ pagination.prev_num }}&sort={{ sort }}&min_pct={{ min_pct }}&year_from={{ year_from }}&year_to={{ year_to }}&state={{ state }}&entity={{ entity }}">Previous</a>
+            <a class="page-link" href="?page={{ pagination.prev_num }}&sort={{ sort }}&min_pct={{ min_pct }}&year_from={{ year_from }}&year_to={{ year_to }}&state={{ state }}&entity={{ entity }}&org_type={{ org_type }}&name_search={{ name_search }}">Previous</a>
         </li>
         {% endif %}
         {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
             {% if page_num %}
             <li class="page-item {% if page_num == pagination.page %}active{% endif %}">
-                <a class="page-link" href="?page={{ page_num }}&sort={{ sort }}&min_pct={{ min_pct }}&year_from={{ year_from }}&year_to={{ year_to }}&state={{ state }}&entity={{ entity }}">{{ page_num }}</a>
+                <a class="page-link" href="?page={{ page_num }}&sort={{ sort }}&min_pct={{ min_pct }}&year_from={{ year_from }}&year_to={{ year_to }}&state={{ state }}&entity={{ entity }}&org_type={{ org_type }}&name_search={{ name_search }}">{{ page_num }}</a>
             </li>
             {% else %}
             <li class="page-item disabled"><span class="page-link">...</span></li>
@@ -131,10 +159,23 @@
         {% endfor %}
         {% if pagination.has_next %}
         <li class="page-item">
-            <a class="page-link" href="?page={{ pagination.next_num }}&sort={{ sort }}&min_pct={{ min_pct }}&year_from={{ year_from }}&year_to={{ year_to }}&state={{ state }}&entity={{ entity }}">Next</a>
+            <a class="page-link" href="?page={{ pagination.next_num }}&sort={{ sort }}&min_pct={{ min_pct }}&year_from={{ year_from }}&year_to={{ year_to }}&state={{ state }}&entity={{ entity }}&org_type={{ org_type }}&name_search={{ name_search }}">Next</a>
         </li>
         {% endif %}
     </ul>
 </nav>
 {% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+    $(document).ready(function() {
+        $('#growth-table').DataTable({
+            paging: false,
+            info: false,
+            searching: false,
+            order: []
+        });
+    });
+</script>
 {% endblock %}

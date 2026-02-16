@@ -40,7 +40,7 @@
     </div>
 </form>
 
-<table class="table table-striped table-sm">
+<table class="table table-striped table-sm" id="cluster-table">
     <thead class="table-dark">
         <tr>
             <th>#</th>
@@ -65,8 +65,8 @@
             <td>{{ item.zip5 or '—' }}</td>
             <td class="text-end fw-bold">{{ item.provider_count }}</td>
             <td class="text-end">{{ item.distinct_units }}</td>
-            <td class="text-end">${{ "{:,.0f}".format(item.combined_spending or 0) }}</td>
-            <td class="text-end">{{ "{:,}".format(item.combined_claims or 0) }}</td>
+            <td class="text-end" data-order="{{ item.combined_spending or 0 }}">${{ "{:,.0f}".format(item.combined_spending or 0) }}</td>
+            <td class="text-end" data-order="{{ item.combined_claims or 0 }}">{{ "{:,}".format(item.combined_claims or 0) }}</td>
             <td>
                 {% if item.org_names %}
                     {% for name in item.org_names[:3] %}
@@ -105,4 +105,17 @@
     </ul>
 </nav>
 {% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+$(document).ready(function() {
+    $('#cluster-table').DataTable({
+        paging: false,
+        info: false,
+        searching: false,
+        order: []
+    });
+});
+</script>
 {% endblock %}

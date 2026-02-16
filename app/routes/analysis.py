@@ -76,6 +76,8 @@ def spending_growth():
     year_to = request.args.get("year_to", "", type=str).strip()
     state = request.args.get("state", "").strip()
     entity = request.args.get("entity", "", type=str).strip()
+    org_type = request.args.get("org_type", "").strip()
+    name_search = request.args.get("name_search", "").strip()
 
     query = MvSpendingGrowth.query
 
@@ -89,6 +91,72 @@ def spending_growth():
         query = query.filter(MvSpendingGrowth.state_code == state.upper())
     if entity in ("1", "2"):
         query = query.filter(MvSpendingGrowth.entity_type == int(entity))
+
+    # [EN] Filter by entity designation — same pattern matching as fraud_risk route.
+    #      Supports aggregate keys ("suspicious", "legitimate", "individual_name")
+    #      and individual category keys (e.g., "llc", "staffing", "hospital").
+    # [RU] Фильтр по юридической форме — та же логика, что и в маршруте fraud_risk.
+    # [PT] Filtro por designacao — mesma logica do rota fraud_risk.
+    if org_type:
+        if org_type == "suspicious":
+            patterns = ALL_SUSPICIOUS_PATTERNS
+        elif org_type == "legitimate":
+            patterns = ALL_LEGITIMATE_PATTERNS
+        elif org_type == "individual_name":
+            # [EN] Flag: org name looks like a personal name (no business keywords).
+            #      Matches entity_type=2 (org) where organization_name has no
+            #      common business keywords — likely a person billing as an org.
+            # [RU] Флаг: название организации похоже на имя физического лица.
+            # [PT] Flag: nome da org parece um nome pessoal (sem palavras de negocio).
+            patterns = None
+            all_business_keywords = (
+                ALL_SUSPICIOUS_PATTERNS + ALL_LEGITIMATE_PATTERNS +
+                ["GROUP", "ASSOCIATES", "PARTNERS", "SERVICES", "HEALTH",
+                 "MEDICAL", "CLINIC", "CARE", "HOME", "THERAPY", "NURSING",
+                 "PHARMACY", "DIAGNOSTIC", "LABORATORY", "LAB", "REHAB",
+                 "REHABILITATION", "DBA", "D/B/A"]
+            )
+            query = query.filter(MvSpendingGrowth.entity_type == 2)
+            exclusion_conditions = []
+            for kw in all_business_keywords:
+                exclusion_conditions.append(
+                    MvSpendingGrowth.organization_name.ilike(f"%{kw}%")
+                )
+            query = query.filter(~db.or_(*exclusion_conditions))
+        elif org_type in ORG_DESIGNATION_FILTERS:
+            patterns = ORG_DESIGNATION_FILTERS[org_type]["patterns"]
+        else:
+            patterns = []
+
+        if org_type != "individual_name" and patterns:
+            conditions = []
+            for pat in patterns:
+                conditions.append(
+                    MvSpendingGrowth.organization_name.ilike(f"% {pat}")
+                )
+                conditions.append(
+                    MvSpendingGrowth.organization_name.ilike(f"% {pat},%")
+                )
+                conditions.append(
+                    MvSpendingGrowth.organization_name.ilike(f"% {pat}.%")
+                )
+                conditions.append(
+                    MvSpendingGrowth.organization_name.ilike(f"{pat} %")
+                )
+            query = query.filter(db.or_(*conditions))
+
+    # [EN] Free-text name search — partial match on organization_name, last_name, first_name
+    # [RU] Поиск по имени — частичное совпадение по названию организации или имени поставщика
+    # [PT] Busca por nome — correspondencia parcial no nome da org ou do provedor
+    if name_search:
+        name_like = f"%{name_search}%"
+        query = query.filter(
+            db.or_(
+                MvSpendingGrowth.organization_name.ilike(name_like),
+                MvSpendingGrowth.last_name.ilike(name_like),
+                MvSpendingGrowth.first_name.ilike(name_like),
+            )
+        )
 
     if sort == "pct":
         query = query.order_by(MvSpendingGrowth.pct_change.desc())
@@ -117,8 +185,12 @@ def spending_growth():
         year_to=year_to,
         state=state,
         entity=entity,
+        org_type=org_type,
+        name_search=name_search,
         years=years,
         states=states,
+        suspicious_filters=SUSPICIOUS_ENTITY_FILTERS,
+        legitimate_filters=LEGITIMATE_ENTITY_FILTERS,
     )
 
 

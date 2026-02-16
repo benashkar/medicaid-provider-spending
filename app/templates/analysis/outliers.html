@@ -15,7 +15,7 @@
     above the peer mean. Higher Z-scores indicate greater deviation from peers.
 </p>
 
-<table class="table table-striped table-sm">
+<table class="table table-striped table-sm" id="outliers-table">
     <thead class="table-dark">
         <tr>
             <th>NPI</th>
@@ -39,14 +39,14 @@
             <td>{{ item.display_name }}</td>
             <td>{{ item.hcpcs_code }}</td>
             <td>{{ item.short_description or '—' }}</td>
-            <td class="text-end">${{ "{:,.0f}".format(item.provider_paid or 0) }}</td>
-            <td class="text-end">${{ "{:,.0f}".format(item.peer_mean or 0) }}</td>
-            <td class="text-end">
+            <td class="text-end" data-order="{{ item.provider_paid or 0 }}">${{ "{:,.0f}".format(item.provider_paid or 0) }}</td>
+            <td class="text-end" data-order="{{ item.peer_mean or 0 }}">${{ "{:,.0f}".format(item.peer_mean or 0) }}</td>
+            <td class="text-end" data-order="{{ item.z_score or 0 }}">
                 <span class="badge {% if item.z_score and item.z_score > 5 %}bg-danger{% elif item.z_score and item.z_score > 3 %}bg-warning text-dark{% else %}bg-info{% endif %}">
                     {{ "{:.1f}".format(item.z_score or 0) }}
                 </span>
             </td>
-            <td class="text-end">{{ "{:,}".format(item.peer_count or 0) }}</td>
+            <td class="text-end" data-order="{{ item.peer_count or 0 }}">{{ "{:,}".format(item.peer_count or 0) }}</td>
         </tr>
         {% endfor %}
     </tbody>
@@ -73,4 +73,17 @@
     </ul>
 </nav>
 {% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+$(document).ready(function() {
+    $('#outliers-table').DataTable({
+        paging: false,
+        info: false,
+        searching: false,
+        order: []
+    });
+});
+</script>
 {% endblock %}

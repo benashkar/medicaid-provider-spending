@@ -26,7 +26,7 @@
 </form>
 
 <div class="table-responsive">
-    <table class="table table-striped table-sm">
+    <table class="table table-striped table-sm" id="network-table">
         <thead class="table-dark">
             <tr>
                 <th>Billing NPI</th>
@@ -54,8 +54,8 @@
                     </a>
                 </td>
                 <td>{{ item.servicing_org or item.servicing_last or '—' }}</td>
-                <td class="text-end">${{ "{:,.0f}".format(item.total_paid or 0) }}</td>
-                <td class="text-end">{{ "{:,}".format(item.total_claims or 0) }}</td>
+                <td class="text-end" data-order="{{ item.total_paid or 0 }}">${{ "{:,.0f}".format(item.total_paid or 0) }}</td>
+                <td class="text-end" data-order="{{ item.total_claims or 0 }}">{{ "{:,}".format(item.total_claims or 0) }}</td>
                 <td class="text-end">{{ item.shared_hcpcs or 0 }}</td>
                 <td>
                     {{ item.first_month.strftime('%Y-%m') if item.first_month else '—' }}
@@ -89,4 +89,17 @@
     </ul>
 </nav>
 {% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+$(document).ready(function() {
+    $('#network-table').DataTable({
+        paging: false,
+        info: false,
+        searching: false,
+        order: []
+    });
+});
+</script>
 {% endblock %}
