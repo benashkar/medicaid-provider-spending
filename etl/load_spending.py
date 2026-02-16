@@ -193,24 +193,40 @@ def transform_row(row: dict) -> tuple | None:
 # Parameters / Параметры / Parametros:
 #   cur:             [EN] psycopg2 cursor | [RU] Курсор psycopg2 | [PT] Cursor psycopg2
 #   batch (list):    [EN] List of row tuples | [RU] Список кортежей строк | [PT] Lista de tuplas de linhas
-def copy_batch(cur, batch: list[tuple]):
-    """Use COPY for fast bulk insertion."""
+def copy_batch(cur, batch: list[tuple], use_staging: bool = False):
+    """Use COPY for fast bulk insertion. With use_staging=True, uses a temp table to skip duplicates."""
     buf = io.StringIO()
     for row in batch:
-        # [EN] Build a tab-separated line; use \N for NULL values
-        # [RU] Формируем строку с табуляцией; \N для значений NULL
-        # [PT] Constroi uma linha separada por tabulacao; \N para valores NULL
         line = "\t".join(
             "\\N" if v is None else str(v) for v in row
         )
         buf.write(line + "\n")
     buf.seek(0)
-    cur.copy_from(
-        buf,
-        "spending",
-        columns=DB_COLUMNS,
-        null="\\N",
-    )
+
+    if use_staging:
+        cur.execute("""
+            CREATE TEMP TABLE IF NOT EXISTS spending_stage (
+                billing_npi CHAR(10),
+                servicing_npi CHAR(10),
+                hcpcs_code VARCHAR(10),
+                claim_month DATE,
+                total_unique_benes INTEGER,
+                total_claims INTEGER,
+                total_paid NUMERIC(14,2)
+            )
+        """)
+        cur.execute("TRUNCATE spending_stage")
+        cur.copy_from(buf, "spending_stage", columns=DB_COLUMNS, null="\\N")
+        cur.execute("""
+            INSERT INTO spending (billing_npi, servicing_npi, hcpcs_code, claim_month,
+                                  total_unique_benes, total_claims, total_paid)
+            SELECT billing_npi, servicing_npi, hcpcs_code, claim_month,
+                   total_unique_benes, total_claims, total_paid
+            FROM spending_stage
+            ON CONFLICT DO NOTHING
+        """)
+    else:
+        cur.copy_from(buf, "spending", columns=DB_COLUMNS, null="\\N")
 
 
 # [EN] Main loading function: streams the spending CSV into PostgreSQL using COPY.
@@ -246,21 +262,16 @@ def load_spending(csv_path: Path | None = None, database_url: str | None = None,
     conn.autocommit = False
     cur = conn.cursor()
 
-    # [EN] Check existing row count for resume support
-    # [RU] Проверяем существующее количество строк для поддержки возобновления
-    # [PT] Verifica contagem de linhas existentes para suporte a retomada
-    skip_rows = 0
     if resume:
         cur.execute("SELECT COUNT(*) FROM spending")
-        skip_rows = cur.fetchone()[0]
-        log.info("Resume mode: %d rows already in DB, will skip those CSV rows", skip_rows)
+        existing = cur.fetchone()[0]
+        log.info("Resume mode: %d rows already in DB, using staging table for duplicates", existing)
     else:
         cur.execute("TRUNCATE TABLE spending RESTART IDENTITY CASCADE")
         log.info("Truncated spending table")
 
     total_rows = 0
     skipped = 0
-    csv_row_num = 0
     batch = []
 
     with open(csv_path, "r", encoding="utf-8", errors="replace") as f:
@@ -269,48 +280,19 @@ def load_spending(csv_path: Path | None = None, database_url: str | None = None,
             transformed = transform_row(row)
             if transformed is None:
                 skipped += 1
-                csv_row_num += 1
-                continue
-
-            csv_row_num += 1
-            # [EN] In resume mode, skip rows that were already loaded
-            # [RU] В режиме возобновления пропускаем уже загруженные строки
-            # [PT] No modo de retomada, pula linhas ja carregadas
-            if resume and (csv_row_num - skipped) <= skip_rows:
-                total_rows += 1
                 continue
 
             batch.append(transformed)
             if len(batch) >= BATCH_SIZE:
                 try:
-                    # [EN] Try fast bulk COPY for the entire batch
-                    # [RU] Пробуем быструю массовую вставку COPY для всего пакета
-                    # [PT] Tenta COPY massivo rapido para o lote inteiro
-                    copy_batch(cur, batch)
+                    copy_batch(cur, batch, use_staging=resume)
                     conn.commit()
                     total_rows += len(batch)
                     log.info("Loaded %d rows (%d skipped)", total_rows, skipped)
                 except Exception as e:
                     conn.rollback()
                     log.error("Batch insert failed at row %d: %s", total_rows, e)
-                    # [EN] Fallback: insert rows one by one with conflict handling
-                    # [RU] Запасной вариант: вставляем строки по одной с обработкой конфликтов
-                    # [PT] Fallback: insere linhas uma por uma com tratamento de conflitos
-                    for single in batch:
-                        try:
-                            cur.execute(
-                                """INSERT INTO spending
-                                   (billing_npi, servicing_npi, hcpcs_code, claim_month,
-                                    total_unique_benes, total_claims, total_paid)
-                                   VALUES (%s, %s, %s, %s, %s, %s, %s)
-                                   ON CONFLICT DO NOTHING""",
-                                single,
-                            )
-                            conn.commit()
-                            total_rows += 1
-                        except Exception as e2:
-                            conn.rollback()
-                            skipped += 1
+                    skipped += len(batch)
                 batch = []
 
     # [EN] Flush the final partial batch (less than BATCH_SIZE rows)
@@ -318,7 +300,7 @@ def load_spending(csv_path: Path | None = None, database_url: str | None = None,
     # [PT] Descarrega o ultimo lote parcial (menos de BATCH_SIZE linhas)
     if batch:
         try:
-            copy_batch(cur, batch)
+            copy_batch(cur, batch, use_staging=resume)
             conn.commit()
             total_rows += len(batch)
         except Exception as e:
