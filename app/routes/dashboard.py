@@ -12,7 +12,7 @@
      Todos os dados vêm de views materializadas pré-agregadas para carregamento rápido.
 """
 
-from flask import Blueprint, render_template
+from flask import Blueprint, render_template, request
 
 from app.models import db, MvMonthlySpending, MvProviderSpendingSummary, MvStateSpending
 
@@ -108,10 +108,27 @@ def geographic():
 #      HCPCS = Sistema de Codificação de Procedimentos Médicos (códigos de faturamento médico).
 @bp.route("/hcpcs")
 def hcpcs():
-    """HCPCS procedure code spending."""
+    """HCPCS procedure code spending with optional code/description filter."""
     from app.models import MvHcpcsSpending
-    hcpcs_data = MvHcpcsSpending.query.order_by(
+
+    code_search = request.args.get("code", "").strip()
+
+    query = MvHcpcsSpending.query
+
+    # [EN] Filter by code or description — partial match on hcpcs_code or short_description
+    # [RU] Фильтр по коду или описанию — частичное совпадение
+    # [PT] Filtro por codigo ou descricao — correspondencia parcial
+    if code_search:
+        like = f"%{code_search}%"
+        query = query.filter(
+            db.or_(
+                MvHcpcsSpending.hcpcs_code.ilike(like),
+                MvHcpcsSpending.short_description.ilike(like),
+            )
+        )
+
+    hcpcs_data = query.order_by(
         MvHcpcsSpending.total_paid.desc()
     ).limit(100).all()
 
-    return render_template("hcpcs.html", hcpcs_data=hcpcs_data)
+    return render_template("hcpcs.html", hcpcs_data=hcpcs_data, code_search=code_search)

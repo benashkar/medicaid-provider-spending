@@ -56,8 +56,19 @@
                     </thead>
                     <tbody>
                         {% for addr in shared_addresses %}
+                        {% set shared_addr_q = ((addr.street_line_1 or '') ~ ', ' ~ (addr.city or '') ~ ', ' ~ (addr.state_code or '') ~ ' ' ~ (addr.zip5 or ''))|urlencode %}
                         <tr>
-                            <td>{{ addr.street_line_1 or '—' }}</td>
+                            <td>
+                                {{ addr.street_line_1 or '—' }}
+                                <a href="https://www.google.com/maps/search/{{ shared_addr_q }}" target="_blank"
+                                   class="btn btn-outline-primary btn-sm py-0 px-1 ms-1" title="Open in Google Maps">
+                                    <i class="bi bi-geo-alt-fill"></i>
+                                </a>
+                                <a href="https://www.google.com/maps/@?api=1&map_action=pano&query={{ shared_addr_q }}"
+                                   target="_blank" class="btn btn-outline-secondary btn-sm py-0 px-1" title="Street View">
+                                    <i class="bi bi-eye-fill"></i>
+                                </a>
+                            </td>
                             <td>{{ addr.city or '—' }}</td>
                             <td>{{ addr.state_code or '—' }}</td>
                             <td>{{ addr.zip5 or '—' }}</td>

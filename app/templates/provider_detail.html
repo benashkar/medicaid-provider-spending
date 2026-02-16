@@ -60,21 +60,47 @@
     </div>
 </div>
 
-<!-- Addresses -->
+<!-- Addresses with Google Maps & Street View -->
 <div class="row g-3 mb-4">
     {% for addr in addresses %}
+    {% set addr_full = (addr.street_line_1 or '') ~ ', ' ~ (addr.city or '') ~ ', ' ~ (addr.state_code or '') ~ ' ' ~ (addr.zip5 or '') %}
+    {% set addr_encoded = addr_full|urlencode %}
     <div class="col-md-6">
         <div class="card h-100">
-            <div class="card-header">{{ addr.address_purpose }} Address</div>
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>{{ addr.address_purpose }} Address</span>
+                <div>
+                    <a href="https://www.google.com/maps/search/{{ addr_encoded }}" target="_blank"
+                       class="btn btn-sm btn-outline-primary" title="Open in Google Maps">
+                        <i class="bi bi-geo-alt-fill"></i> Map
+                    </a>
+                    <a href="https://www.google.com/maps?q={{ addr_encoded }}&layer=c" target="_blank"
+                       class="btn btn-sm btn-outline-warning" title="Open Google Street View">
+                        <i class="bi bi-camera-fill"></i> Street View
+                    </a>
+                </div>
+            </div>
             <div class="card-body">
-                <p>
+                <p class="mb-2">
                     {{ addr.street_line_1 or '' }}<br>
                     {% if addr.street_line_2 %}{{ addr.street_line_2 }}<br>{% endif %}
                     {{ addr.city or '' }}, {{ addr.state_code or '' }} {{ addr.zip5 or '' }}
                 </p>
                 {% if addr.phone %}
-                <p class="mb-0"><strong>Phone:</strong> {{ addr.phone }}</p>
+                <p class="mb-2"><strong>Phone:</strong> {{ addr.phone }}</p>
                 {% endif %}
+                <!-- Embedded Google Map (satellite view) -->
+                <div class="mt-1">
+                    <iframe
+                        width="100%"
+                        height="300"
+                        style="border:0; border-radius: 8px;"
+                        loading="lazy"
+                        referrerpolicy="no-referrer-when-downgrade"
+                        src="https://maps.google.com/maps?q={{ addr_encoded }}&t=k&z=18&output=embed"
+                        allowfullscreen>
+                    </iframe>
+                </div>
             </div>
         </div>
     </div>

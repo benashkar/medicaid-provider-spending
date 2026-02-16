@@ -57,9 +57,22 @@
     </thead>
     <tbody>
         {% for item in items %}
+        {% set cluster_addr = (item.building_number ~ ' ' ~ item.building_street ~ ', ' ~ (item.city or '') ~ ', ' ~ (item.state_code or '') ~ ' ' ~ (item.zip5 or ''))|urlencode %}
         <tr class="{% if item.provider_count >= 5 %}table-danger{% elif item.provider_count >= 3 %}table-warning{% endif %}">
             <td>{{ (pagination.page - 1) * pagination.per_page + loop.index }}</td>
-            <td>{{ item.building_number }} {{ item.building_street }}</td>
+            <td>
+                {{ item.building_number }} {{ item.building_street }}
+                <div class="mt-1">
+                    <a href="https://www.google.com/maps/search/{{ cluster_addr }}" target="_blank"
+                       class="btn btn-outline-primary btn-sm py-0 px-1" title="Open in Google Maps">
+                        <i class="bi bi-geo-alt-fill"></i>
+                    </a>
+                    <a href="https://www.google.com/maps/@?api=1&map_action=pano&query={{ cluster_addr }}"
+                       target="_blank" class="btn btn-outline-secondary btn-sm py-0 px-1" title="Street View">
+                        <i class="bi bi-eye-fill"></i>
+                    </a>
+                </div>
+            </td>
             <td>{{ item.city or '—' }}</td>
             <td>{{ item.state_code or '—' }}</td>
             <td>{{ item.zip5 or '—' }}</td>

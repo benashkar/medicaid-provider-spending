@@ -40,6 +40,9 @@
         <label class="form-label fw-bold">Entity Designation</label>
         <select name="org_type" class="form-select">
             <option value="">All Types</option>
+            <optgroup label="Fraud Flags">
+                <option value="individual_name" {% if org_type == 'individual_name' %}selected{% endif %}>Individual Name as Org</option>
+            </optgroup>
             <optgroup label="Aggregate Filters">
                 <option value="suspicious" {% if org_type == 'suspicious' %}selected{% endif %}>All Suspicious Entity Types</option>
                 <option value="legitimate" {% if org_type == 'legitimate' %}selected{% endif %}>All Legitimate Entity Types</option>

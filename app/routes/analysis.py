@@ -103,26 +103,47 @@ def spending_growth():
         elif org_type == "legitimate":
             patterns = ALL_LEGITIMATE_PATTERNS
         elif org_type == "individual_name":
-            # [EN] Flag: org name looks like a personal name (no business keywords).
-            #      Matches entity_type=2 (org) where organization_name has no
-            #      common business keywords — likely a person billing as an org.
-            # [RU] Флаг: название организации похоже на имя физического лица.
-            # [PT] Flag: nome da org parece um nome pessoal (sem palavras de negocio).
+            # [EN] Flag: org name contains the authorized official's personal name.
+            #      Matches entity_type=2 (org) where organization_name starts with
+            #      the official's first name followed by their last name, or uses
+            #      "LAST, FIRST" / "LAST FIRST" format — likely a person billing as an org.
+            # [RU] Флаг: название организации содержит имя уполномоченного лица.
+            # [PT] Flag: nome da org contem o nome do oficial autorizado.
             patterns = None
-            all_business_keywords = (
-                ALL_SUSPICIOUS_PATTERNS + ALL_LEGITIMATE_PATTERNS +
-                ["GROUP", "ASSOCIATES", "PARTNERS", "SERVICES", "HEALTH",
-                 "MEDICAL", "CLINIC", "CARE", "HOME", "THERAPY", "NURSING",
-                 "PHARMACY", "DIAGNOSTIC", "LABORATORY", "LAB", "REHAB",
-                 "REHABILITATION", "DBA", "D/B/A"]
-            )
             query = query.filter(MvSpendingGrowth.entity_type == 2)
-            exclusion_conditions = []
-            for kw in all_business_keywords:
-                exclusion_conditions.append(
-                    MvSpendingGrowth.organization_name.ilike(f"%{kw}%")
+            query = query.filter(MvSpendingGrowth.authorized_official_last.isnot(None))
+            query = query.filter(MvSpendingGrowth.authorized_official_first.isnot(None))
+            query = query.filter(MvSpendingGrowth.authorized_official_last != "")
+            query = query.filter(MvSpendingGrowth.authorized_official_first != "")
+            query = query.filter(MvSpendingGrowth.organization_name.isnot(None))
+            # [EN] Match: org name starts with "FIRST ... LAST" (with possible middle name/initial)
+            #      or "LAST, FIRST" or "LAST FIRST" patterns.
+            #      Also limit org name length to avoid false matches on long names.
+            query = query.filter(
+                db.or_(
+                    # "FIRST ... LAST..." pattern (e.g., "CHARLES S. RAMON, LLC.")
+                    db.and_(
+                        MvSpendingGrowth.organization_name.op("ILIKE")(
+                            db.func.concat(MvSpendingGrowth.authorized_official_first, "%",
+                                           MvSpendingGrowth.authorized_official_last, "%")
+                        ),
+                        db.func.length(MvSpendingGrowth.organization_name) <
+                        db.func.length(db.func.concat(
+                            MvSpendingGrowth.authorized_official_first, " ",
+                            MvSpendingGrowth.authorized_official_last)) + 20,
+                    ),
+                    # "LAST, FIRST..." pattern
+                    MvSpendingGrowth.organization_name.op("ILIKE")(
+                        db.func.concat(MvSpendingGrowth.authorized_official_last, ", ",
+                                       MvSpendingGrowth.authorized_official_first, "%")
+                    ),
+                    # "LAST FIRST..." pattern
+                    MvSpendingGrowth.organization_name.op("ILIKE")(
+                        db.func.concat(MvSpendingGrowth.authorized_official_last, " ",
+                                       MvSpendingGrowth.authorized_official_first, "%")
+                    ),
                 )
-            query = query.filter(~db.or_(*exclusion_conditions))
+            )
         elif org_type in ORG_DESIGNATION_FILTERS:
             patterns = ORG_DESIGNATION_FILTERS[org_type]["patterns"]
         else:
@@ -528,7 +549,37 @@ def fraud_risk():
         # [EN] Determine which patterns to match based on filter key
         # [RU] Определяем, какие шаблоны сопоставлять на основе ключа фильтра
         # [PT] Determina quais padroes corresponder com base na chave do filtro
-        if org_type == "suspicious":
+        if org_type == "individual_name":
+            # [EN] Flag: org name contains the authorized official's personal name.
+            patterns = None
+            query = query.filter(MvFraudRiskScore.authorized_official_last.isnot(None))
+            query = query.filter(MvFraudRiskScore.authorized_official_first.isnot(None))
+            query = query.filter(MvFraudRiskScore.authorized_official_last != "")
+            query = query.filter(MvFraudRiskScore.authorized_official_first != "")
+            query = query.filter(MvFraudRiskScore.organization_name.isnot(None))
+            query = query.filter(
+                db.or_(
+                    db.and_(
+                        MvFraudRiskScore.organization_name.op("ILIKE")(
+                            db.func.concat(MvFraudRiskScore.authorized_official_first, "%",
+                                           MvFraudRiskScore.authorized_official_last, "%")
+                        ),
+                        db.func.length(MvFraudRiskScore.organization_name) <
+                        db.func.length(db.func.concat(
+                            MvFraudRiskScore.authorized_official_first, " ",
+                            MvFraudRiskScore.authorized_official_last)) + 20,
+                    ),
+                    MvFraudRiskScore.organization_name.op("ILIKE")(
+                        db.func.concat(MvFraudRiskScore.authorized_official_last, ", ",
+                                       MvFraudRiskScore.authorized_official_first, "%")
+                    ),
+                    MvFraudRiskScore.organization_name.op("ILIKE")(
+                        db.func.concat(MvFraudRiskScore.authorized_official_last, " ",
+                                       MvFraudRiskScore.authorized_official_first, "%")
+                    ),
+                )
+            )
+        elif org_type == "suspicious":
             patterns = ALL_SUSPICIOUS_PATTERNS
         elif org_type == "legitimate":
             patterns = ALL_LEGITIMATE_PATTERNS
