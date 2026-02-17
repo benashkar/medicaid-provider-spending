@@ -78,6 +78,7 @@ def spending_growth():
     entity = request.args.get("entity", "", type=str).strip()
     org_type = request.args.get("org_type", "").strip()
     name_search = request.args.get("name_search", "").strip()
+    city = request.args.get("city", "").strip()
 
     query = MvSpendingGrowth.query
 
@@ -89,6 +90,8 @@ def spending_growth():
         query = query.filter(MvSpendingGrowth.claim_year <= int(year_to))
     if state:
         query = query.filter(MvSpendingGrowth.state_code == state.upper())
+    if city:
+        query = query.filter(MvSpendingGrowth.city.ilike(city.upper()))
     if entity in ("1", "2"):
         query = query.filter(MvSpendingGrowth.entity_type == int(entity))
 
@@ -205,6 +208,7 @@ def spending_growth():
         year_from=year_from,
         year_to=year_to,
         state=state,
+        city=city,
         entity=entity,
         org_type=org_type,
         name_search=name_search,
