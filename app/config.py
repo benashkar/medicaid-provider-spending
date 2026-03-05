@@ -65,13 +65,7 @@ class Config:
         "pool_pre_ping": True,
     }
 
-    # [EN] Fix for Render.com hosting: Render provides DATABASE_URL with "postgres://" prefix,
-    #      but SQLAlchemy 1.4+ requires "postgresql://". Replace only the first occurrence.
-    # [RU] Исправление для хостинга Render.com: Render предоставляет DATABASE_URL с префиксом "postgres://",
-    #      но SQLAlchemy 1.4+ требует "postgresql://". Заменяем только первое вхождение.
-    # [PT] Correção para hospedagem no Render.com: o Render fornece DATABASE_URL com prefixo "postgres://",
-    #      mas o SQLAlchemy 1.4+ exige "postgresql://". Substitui apenas a primeira ocorrência.
-    if SQLALCHEMY_DATABASE_URI.startswith("postgres://"):
-        SQLALCHEMY_DATABASE_URI = SQLALCHEMY_DATABASE_URI.replace(
-            "postgres://", "postgresql://", 1
-        )
+    # [EN] MySQL connection via PyMySQL driver for db99 RDS
+    if SQLALCHEMY_DATABASE_URI.startswith("postgres://") or SQLALCHEMY_DATABASE_URI.startswith("postgresql://"):
+        # Legacy Postgres URL detected — should be updated to mysql+pymysql://
+        pass
