@@ -64,7 +64,7 @@ COPY requirements.txt .
 #     пакеты, которые можно установить без компилятора на этапе выполнения.
 # PT: Compila arquivos wheel para todas as dependencias. Sao pacotes binarios
 #     portaveis que podem ser instalados sem compilador no estagio de execucao.
-RUN pip wheel --no-cache-dir --wheel-dir /build/wheels -r requirements.txt
+RUN python -m pip wheel --no-cache-dir --wheel-dir /build/wheels -r requirements.txt
 
 
 # ---------------------------------------------------------------------------
@@ -118,7 +118,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 #     instala. Isso evita a necessidade de gcc ou ferramentas de compilacao
 #     na imagem de execucao.
 COPY --from=builder /build/wheels /tmp/wheels
-RUN pip install --no-cache-dir /tmp/wheels/* \
+RUN python -m pip install --no-cache-dir /tmp/wheels/* \
     && rm -rf /tmp/wheels
 
 # EN: Copy application source code. Only the directories needed at runtime
