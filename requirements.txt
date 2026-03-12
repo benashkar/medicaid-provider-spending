@@ -4,6 +4,7 @@ gunicorn==22.*
 pymysql==1.1.*
 sqlalchemy==2.0.*
 python-dotenv==1.0.*
+boto3>=1.34
 usaddress==0.5.*
 requests==2.32.*
 plotly==6.*

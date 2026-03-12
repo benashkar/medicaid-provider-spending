@@ -1,24 +1,21 @@
-databases:
-  - name: medicaid-db
-    plan: standard
-    databaseName: medicaid_spending
-    user: medicaid_user
-    region: ohio
-
 services:
   - type: web
     name: medicaid-dashboard
     runtime: docker
     plan: starter
-    region: ohio
+    region: virginia
     repo: https://github.com/benashkar/medicaid-provider-spending
     branch: main
     dockerfilePath: ./Dockerfile
     envVars:
-      - key: DATABASE_URL
-        fromDatabase:
-          name: medicaid-db
-          property: connectionString
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: AWS_DEFAULT_REGION
+        value: us-east-1
+      - key: DB_NAME
+        value: medicaid_spending
       - key: FLASK_ENV
         value: production
       - key: SECRET_KEY

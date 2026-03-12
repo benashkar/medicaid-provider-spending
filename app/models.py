@@ -514,9 +514,9 @@ class MvAddressClustering(db.Model):
     distinct_units = db.Column(db.BigInteger)
     combined_spending = db.Column(db.Numeric)
     combined_claims = db.Column(db.BigInteger)
-    npis = db.Column(db.JSON)
-    unit_numbers = db.Column(db.JSON)
-    org_names = db.Column(db.JSON)
+    npis = db.Column(db.Text)
+    unit_numbers = db.Column(db.Text)
+    org_names = db.Column(db.Text)
 
 
 # [EN] Rapid ramp detection — organizations registered since 2020 that quickly reached
@@ -644,8 +644,8 @@ class MvOfficialNetwork(db.Model):
     org_count = db.Column(db.BigInteger)
     combined_spending = db.Column(db.Numeric)
     combined_claims = db.Column(db.BigInteger)
-    npis = db.Column(db.JSON)
-    org_names = db.Column(db.JSON)
-    states = db.Column(db.JSON)
-    cities = db.Column(db.JSON)
+    npis = db.Column(db.Text)
+    org_names = db.Column(db.Text)
+    states = db.Column(db.Text)
+    cities = db.Column(db.Text)
     state_count = db.Column(db.BigInteger)

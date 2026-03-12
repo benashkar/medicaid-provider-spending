@@ -1,71 +1,73 @@
-"""
-[EN] Flask configuration loaded from environment variables.
-     Contains database connection settings, secret keys, and connection pool options.
-     Values are read from a .env file via python-dotenv.
+"""Secret loading: AWS Secrets Manager first, .env fallback for local dev."""
 
-[RU] Конфигурация Flask, загружаемая из переменных окружения.
-     Содержит настройки подключения к базе данных, секретные ключи и параметры пула соединений.
-     Значения считываются из файла .env с помощью python-dotenv.
-
-[PT] Configuração do Flask carregada a partir de variáveis de ambiente.
-     Contém configurações de conexão com o banco de dados, chaves secretas e opções de pool de conexões.
-     Os valores são lidos de um arquivo .env via python-dotenv.
-"""
-
+import json
 import os
 
+import boto3
 from dotenv import load_dotenv
 
-# [EN] Load environment variables from a .env file into os.environ.
-#      This must be called before accessing any env vars below.
-# [RU] Загрузить переменные окружения из файла .env в os.environ.
-#      Это необходимо вызвать до обращения к переменным окружения ниже.
-# [PT] Carregar variáveis de ambiente do arquivo .env para os.environ.
-#      Isso deve ser chamado antes de acessar qualquer variável de ambiente abaixo.
-load_dotenv()
+
+_cached_config = None
 
 
-# [EN] Configuration class that Flask reads via app.config.from_object().
-#      All attributes become Flask config keys (e.g., app.config["SECRET_KEY"]).
-# [RU] Класс конфигурации, который Flask читает через app.config.from_object().
-#      Все атрибуты становятся ключами конфигурации Flask (например, app.config["SECRET_KEY"]).
-# [PT] Classe de configuração que o Flask lê via app.config.from_object().
-#      Todos os atributos se tornam chaves de configuração do Flask (ex.: app.config["SECRET_KEY"]).
+def _load_config():
+    """Load DB credentials from AWS Secrets Manager, fall back to .env."""
+    global _cached_config
+    if _cached_config is not None:
+        return _cached_config
+
+    try:
+        client = boto3.client('secretsmanager', region_name='us-east-1')
+        secret = client.get_secret_value(SecretId='/ben/ai-tool/db99')
+        creds = json.loads(secret['SecretString'])
+        db_host = creds.get('DB_HOST') or ''
+        db_port = creds.get('DB_PORT') or '3306'
+        db_user = creds.get('DB_USER') or ''
+        db_password = creds.get('DB_PASSWORD') or ''
+        _cached_config = {
+            'DB_HOST': db_host,
+            'DB_PORT': db_port,
+            'DB_USER': db_user,
+            'DB_PASSWORD': db_password,
+            '_source': 'aws',
+        }
+    except Exception:
+        load_dotenv()
+        _cached_config = {
+            'DB_HOST': os.getenv('DB_HOST', ''),
+            'DB_PORT': os.getenv('DB_PORT', '3306'),
+            'DB_USER': os.getenv('DB_USER', ''),
+            'DB_PASSWORD': os.getenv('DB_PASSWORD', ''),
+            '_source': 'env',
+        }
+
+    # DB_NAME comes from env var (project-specific, not a secret)
+    _cached_config['DB_NAME'] = os.getenv('DB_NAME', 'medicaid_spending')
+    # Allow env var override for DB_HOST (e.g. direct IP for VPN sessions)
+    if os.getenv('DB_HOST'):
+        _cached_config['DB_HOST'] = os.getenv('DB_HOST')
+
+    return _cached_config
+
+
+def _build_database_url():
+    """Build mysql+pymysql:// connection string from config."""
+    cfg = _load_config()
+    user = cfg['DB_USER']
+    password = cfg['DB_PASSWORD']
+    host = cfg['DB_HOST']
+    port = cfg['DB_PORT']
+    db_name = cfg['DB_NAME']
+    return f"mysql+pymysql://{user}:{password}@{host}:{port}/{db_name}?charset=utf8mb4"
+
+
 class Config:
-    # [EN] Secret key for session signing and CSRF protection. Use a strong random value in production.
-    # [RU] Секретный ключ для подписи сессий и защиты от CSRF. В продакшене используйте надёжное случайное значение.
-    # [PT] Chave secreta para assinatura de sessão e proteção CSRF. Use um valor aleatório forte em produção.
     SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-change-me")
-
-    # [EN] Database connection URI (e.g., postgresql://user:pass@host/dbname)
-    # [RU] URI подключения к базе данных (например, postgresql://user:pass@host/dbname)
-    # [PT] URI de conexão com o banco de dados (ex.: postgresql://user:pass@host/dbname)
-    SQLALCHEMY_DATABASE_URI = os.environ.get("DATABASE_URL", "")
-
-    # [EN] Disable SQLAlchemy event tracking to save memory (not needed in this app)
-    # [RU] Отключить отслеживание событий SQLAlchemy для экономии памяти (в этом приложении не нужно)
-    # [PT] Desativar rastreamento de eventos do SQLAlchemy para economizar memória (não necessário nesta aplicação)
+    SQLALCHEMY_DATABASE_URI = _build_database_url()
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-
-    # [EN] Database connection pool settings:
-    #      - pool_size: max number of persistent connections (5)
-    #      - pool_recycle: recycle connections after 300 seconds to avoid stale connections
-    #      - pool_pre_ping: test connections before use to detect dropped connections
-    # [RU] Настройки пула подключений к базе данных:
-    #      - pool_size: максимальное количество постоянных соединений (5)
-    #      - pool_recycle: обновлять соединения через 300 секунд, чтобы избежать устаревших соединений
-    #      - pool_pre_ping: проверять соединения перед использованием для обнаружения разорванных соединений
-    # [PT] Configurações do pool de conexões com o banco de dados:
-    #      - pool_size: número máximo de conexões persistentes (5)
-    #      - pool_recycle: reciclar conexões após 300 segundos para evitar conexões obsoletas
-    #      - pool_pre_ping: testar conexões antes do uso para detectar conexões interrompidas
     SQLALCHEMY_ENGINE_OPTIONS = {
         "pool_size": 5,
-        "pool_recycle": 300,
+        "max_overflow": 10,
+        "pool_recycle": 3600,
         "pool_pre_ping": True,
     }
-
-    # [EN] MySQL connection via PyMySQL driver for db99 RDS
-    if SQLALCHEMY_DATABASE_URI.startswith("postgres://") or SQLALCHEMY_DATABASE_URI.startswith("postgresql://"):
-        # Legacy Postgres URL detected — should be updated to mysql+pymysql://
-        pass
