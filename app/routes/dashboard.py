@@ -58,13 +58,13 @@ def index():
 
     return render_template(
         "dashboard.html",
-        total_paid=monthly.total_paid or 0,
-        total_claims=monthly.total_claims or 0,
-        total_benes=monthly.total_benes or 0,
+        total_paid=getattr(monthly, "total_paid", None) or 0,
+        total_claims=getattr(monthly, "total_claims", None) or 0,
+        total_benes=getattr(monthly, "total_benes", None) or 0,
         provider_count=provider_count,
         state_count=state_count,
-        date_min=monthly.min_date,
-        date_max=monthly.max_date,
+        date_min=getattr(monthly, "min_date", None),
+        date_max=getattr(monthly, "max_date", None),
     )
 
 
