@@ -29,20 +29,4 @@ def create_app(config_class=Config):
     def health():
         return {"status": "ok"}, 200
 
-    @app.route("/debug-db")
-    def debug_db():
-        """Temporary diagnostic endpoint — remove after confirming connectivity."""
-        import traceback
-        info = {"db_uri_prefix": app.config["SQLALCHEMY_DATABASE_URI"][:50] + "..."}
-        try:
-            from app.models import db as _db
-            result = _db.session.execute(_db.text("SELECT 1")).scalar()
-            info["connection"] = "ok"
-            info["select_1"] = result
-        except Exception as e:
-            info["connection"] = "failed"
-            info["error"] = str(e)
-            info["traceback"] = traceback.format_exc()
-        return info, 200
-
     return app
