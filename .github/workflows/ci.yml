@@ -1,0 +1,22 @@
+name: CI
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install deps (best effort)
+        run: pip install -r requirements.txt || echo "optional deps failed; continuing"
+      - name: Compile all Python
+        run: python -m compileall -q .
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Syntax-check JS
+        run: find . -name '*.js' -not -path './node_modules/*' -print0 | xargs -0 -n1 node --check
